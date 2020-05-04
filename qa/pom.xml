@@ -13,6 +13,7 @@
   </parent>
 
   <modules>
+    <module>e2e</module>
     <module>integration-tests</module>
   </modules>
 
