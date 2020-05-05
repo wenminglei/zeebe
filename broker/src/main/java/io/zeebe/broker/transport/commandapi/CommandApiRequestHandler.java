@@ -34,6 +34,7 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.Queue;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.agrona.DirectBuffer;
 import org.agrona.collections.Int2ObjectHashMap;
 import org.agrona.concurrent.ManyToOneConcurrentLinkedQueue;
@@ -57,8 +58,10 @@ final class CommandApiRequestHandler implements RequestHandler {
 
   private final Map<ValueType, UnpackedObject> recordsByType = new EnumMap<>(ValueType.class);
   private final BackpressureMetrics metrics;
+  private final Supplier<Boolean> isDiskSpaceAvailable;
 
-  CommandApiRequestHandler() {
+  CommandApiRequestHandler(final Supplier<Boolean> isDiskSpaceAvailable) {
+    this.isDiskSpaceAvailable = isDiskSpaceAvailable;
     this.metrics = new BackpressureMetrics();
     initEventTypeMap();
   }
@@ -143,6 +146,13 @@ final class CommandApiRequestHandler implements RequestHandler {
           limiter.getLimit(),
           limiter.getInflightCount(),
           requestId);
+      errorResponseWriter.resourceExhausted().tryWriteResponse(output, partitionId, requestId);
+      return;
+    }
+
+    if (!isDiskSpaceAvailable.get()) {
+      LOG.debug("Out of disk space. Rejecting requests");
+      limiter.onIgnore(partitionId, requestId);
       errorResponseWriter.resourceExhausted().tryWriteResponse(output, partitionId, requestId);
       return;
     }

@@ -22,6 +22,7 @@ import io.zeebe.util.sched.Actor;
 import io.zeebe.util.sched.future.ActorFuture;
 import io.zeebe.util.sched.future.CompletableActorFuture;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.agrona.collections.IntHashSet;
 
 public final class CommandApiService extends Actor implements PartitionListener {
@@ -35,10 +36,11 @@ public final class CommandApiService extends Actor implements PartitionListener 
   public CommandApiService(
       final ServerTransport serverTransport,
       final BrokerInfo localBroker,
-      final PartitionAwareRequestLimiter limiter) {
+      final PartitionAwareRequestLimiter limiter,
+      final Supplier<Boolean> isDiskSpaceAvailable) {
     this.serverTransport = serverTransport;
     this.limiter = limiter;
-    requestHandler = new CommandApiRequestHandler();
+    requestHandler = new CommandApiRequestHandler(isDiskSpaceAvailable);
     this.actorName = buildActorName(localBroker.getNodeId(), "CommandApiService");
   }
 

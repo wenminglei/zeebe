@@ -62,6 +62,7 @@ import io.atomix.raft.storage.snapshot.Snapshot;
 import io.atomix.storage.StorageException;
 import io.atomix.storage.journal.Indexed;
 import io.atomix.utils.time.WallClockTimestamp;
+import io.zeebe.util.ByteValue;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -927,6 +928,12 @@ public class PassiveRole extends InactiveRole {
       final RaftLogEntry entry,
       final RaftLogWriter writer,
       final CompletableFuture<AppendResponse> future) {
+
+    if (!isDiskSpaceAvailable()) {
+      log.info("Not enough disk space available.");
+      failAppend(index - 1, future);
+      return false;
+    }
     try {
       final Indexed<RaftLogEntry> indexed = writer.append(entry);
       log.trace("Appended {}", indexed);
@@ -941,6 +948,10 @@ public class PassiveRole extends InactiveRole {
       return false;
     }
     return true;
+  }
+
+  private boolean isDiskSpaceAvailable() {
+    return raft.getStorage().directory().getUsableSpace() >= ByteValue.ofGigabytes(3);
   }
 
   /**
