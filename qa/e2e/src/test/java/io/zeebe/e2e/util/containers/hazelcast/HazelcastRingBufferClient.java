@@ -1,7 +1,6 @@
 package io.zeebe.e2e.util.containers.hazelcast;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.ringbuffer.Ringbuffer;
 import io.zeebe.protocol.immutables.record.RecordTypeReference;
@@ -17,7 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class HazelcastRingBufferClient {
-  private static final RecordTypeReference TYPE_REFERENCE = new RecordTypeReference();
+  private static final RecordTypeReference<?> TYPE_REFERENCE = new RecordTypeReference<>();
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final Logger LOGGER = LoggerFactory.getLogger(HazelcastRingBufferClient.class);
 
@@ -29,11 +28,15 @@ public final class HazelcastRingBufferClient {
   private ExecutorService executorService;
   private Future<?> future;
 
-  public HazelcastRingBufferClient(final HazelcastInstance client, final Ringbuffer<byte[]> ringBuffer) {
+  public HazelcastRingBufferClient(
+      final HazelcastInstance client, final Ringbuffer<byte[]> ringBuffer) {
     this(client, ringBuffer, ringBuffer.headSequence());
   }
 
-  public HazelcastRingBufferClient(final HazelcastInstance client, final Ringbuffer<byte[]> ringBuffer, final long startSequence) {
+  public HazelcastRingBufferClient(
+      final HazelcastInstance client,
+      final Ringbuffer<byte[]> ringBuffer,
+      final long startSequence) {
     this.client = client;
     this.ringBuffer = ringBuffer;
     this.sequence = startSequence;
