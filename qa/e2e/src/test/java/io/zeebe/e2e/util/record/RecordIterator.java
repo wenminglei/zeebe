@@ -1,6 +1,11 @@
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH under
+ * one or more contributor license agreements. See the NOTICE file distributed
+ * with this work for additional information regarding copyright ownership.
+ * Licensed under the Zeebe Community License 1.0. You may not use this file
+ * except in compliance with the Zeebe Community License 1.0.
+ */
 package io.zeebe.e2e.util.record;
-
-import static org.awaitility.Awaitility.await;
 
 import io.zeebe.protocol.record.Record;
 import java.time.Duration;
@@ -44,13 +49,13 @@ public final class RecordIterator implements Iterator<Record<?>> {
     }
 
     try {
+      final var awaitStart = System.currentTimeMillis();
       var remainingTime = timeout.toMillis();
-      var awaitStart = System.currentTimeMillis();
 
       while (isEmpty() && remainingTime > 0) {
         try {
           isEmpty.await(remainingTime, TimeUnit.MILLISECONDS);
-          remainingTime = System.currentTimeMillis() - awaitStart;
+          remainingTime -= System.currentTimeMillis() - awaitStart;
         } catch (final InterruptedException e) {
           Thread.currentThread().interrupt();
           break;

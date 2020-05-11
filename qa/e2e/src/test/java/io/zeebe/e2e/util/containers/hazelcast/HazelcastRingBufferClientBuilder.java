@@ -1,14 +1,21 @@
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH under
+ * one or more contributor license agreements. See the NOTICE file distributed
+ * with this work for additional information regarding copyright ownership.
+ * Licensed under the Zeebe Community License 1.0. You may not use this file
+ * except in compliance with the Zeebe Community License 1.0.
+ */
 package io.zeebe.e2e.util.containers.hazelcast;
 
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
-import io.zeebe.e2e.util.containers.hazelcast.HazelcastRingBufferClient.Listener;
+import io.zeebe.e2e.util.containers.ExporterClientListener;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
 public final class HazelcastRingBufferClientBuilder {
-  private final Set<Listener> listeners;
+  private final Set<ExporterClientListener> listeners;
   private String hazelcastAddress;
   private String ringBufferName;
 
@@ -21,7 +28,7 @@ public final class HazelcastRingBufferClientBuilder {
     return this;
   }
 
-  public HazelcastRingBufferClientBuilder withListener(final Listener... listeners) {
+  public HazelcastRingBufferClientBuilder withListener(final ExporterClientListener... listeners) {
     this.listeners.addAll(Arrays.asList(listeners));
     return this;
   }

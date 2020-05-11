@@ -1,10 +1,18 @@
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH under
+ * one or more contributor license agreements. See the NOTICE file distributed
+ * with this work for additional information regarding copyright ownership.
+ * Licensed under the Zeebe Community License 1.0. You may not use this file
+ * except in compliance with the Zeebe Community License 1.0.
+ */
 package io.zeebe.e2e.util.containers.hazelcast;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.ringbuffer.Ringbuffer;
+import io.zeebe.e2e.util.containers.ExporterClientListener;
+import io.zeebe.e2e.util.containers.ObservableExporterClient;
 import io.zeebe.protocol.immutables.record.RecordTypeReference;
-import io.zeebe.protocol.record.Record;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Set;
@@ -15,14 +23,14 @@ import java.util.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public final class HazelcastRingBufferClient {
+public final class HazelcastRingBufferClient implements ObservableExporterClient {
   private static final RecordTypeReference<?> TYPE_REFERENCE = new RecordTypeReference<>();
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final Logger LOGGER = LoggerFactory.getLogger(HazelcastRingBufferClient.class);
 
   private final HazelcastInstance client;
   private final Ringbuffer<byte[]> ringBuffer;
-  private final Set<Listener> listeners;
+  private final Set<ExporterClientListener> listeners;
 
   private long sequence;
   private ExecutorService executorService;
@@ -48,21 +56,13 @@ public final class HazelcastRingBufferClient {
       final HazelcastInstance client,
       final Ringbuffer<byte[]> ringBuffer,
       final long startSequence,
-      final Collection<Listener> initialListeners) {
+      final Collection<ExporterClientListener> initialListeners) {
     this(client, ringBuffer, startSequence);
     listeners.addAll(initialListeners);
   }
 
   public static HazelcastRingBufferClientBuilder builder() {
     return new HazelcastRingBufferClientBuilder();
-  }
-
-  public void addListener(final Listener listener) {
-    listeners.add(listener);
-  }
-
-  public void removeListener(final Listener listener) {
-    listeners.remove(listener);
   }
 
   public void start() {
@@ -81,11 +81,18 @@ public final class HazelcastRingBufferClient {
       executorService.shutdown();
     }
 
-    for (final var listener : listeners) {
-      safelyCloseListener(listener);
-    }
-
+    onExporterClientClose();
     client.shutdown();
+  }
+
+  @Override
+  public Set<ExporterClientListener> getListeners() {
+    return listeners;
+  }
+
+  @Override
+  public Logger getLogger() {
+    return LOGGER;
   }
 
   public long getSequence() {
@@ -112,10 +119,7 @@ public final class HazelcastRingBufferClient {
     try {
       final var jsonEntry = ringBuffer.readOne(sequence);
       final var record = MAPPER.readValue(jsonEntry, TYPE_REFERENCE);
-      for (final var listener : listeners) {
-        safelyNotifyListener(listener, record);
-      }
-
+      onExporterClientRecord(record);
       sequence += 1;
     } catch (final IOException e) {
       LOGGER.error(
@@ -124,33 +128,5 @@ public final class HazelcastRingBufferClient {
           sequence,
           e);
     }
-  }
-
-  private void safelyNotifyListener(final Listener listener, final Record<?> record) {
-    try {
-      listener.onRecord(record);
-    } catch (final Exception e) {
-      LOGGER.error(
-          "Unexpected error notify Hazelcast ring buffer client listener {} with record {}",
-          listener,
-          record,
-          e);
-    }
-  }
-
-  private void safelyCloseListener(final Listener listener) {
-    try {
-      listener.onClose();
-    } catch (final Exception e) {
-      LOGGER.error(
-          "Unexpected error closing Hazelcast ring buffer client listener {}", listener, e);
-    }
-  }
-
-  @FunctionalInterface
-  public interface Listener {
-    void onRecord(final Record<?> record);
-
-    default void onClose() {}
   }
 }

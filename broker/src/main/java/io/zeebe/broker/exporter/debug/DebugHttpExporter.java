@@ -44,10 +44,14 @@ public final class DebugHttpExporter implements Exporter {
       final DebugHttpExporterConfiguration configuration =
           context.getConfiguration().instantiate(DebugHttpExporterConfiguration.class);
 
-      httpServer = new DebugHttpServer(configuration.getPort(), configuration.getLimit());
+      httpServer =
+          new DebugHttpServer(
+              configuration.getHost(), configuration.getPort(), configuration.getLimit());
+      httpServer.start();
       log.info(
-          "Debug http server started, inspect the last {} records on http://localhost:{}",
+          "Debug http server started, inspect the last {} records on http://{}:{}",
           configuration.getLimit(),
+          configuration.getHost(),
           configuration.getPort());
     }
   }
@@ -66,9 +70,17 @@ public final class DebugHttpExporter implements Exporter {
   }
 
   public static class DebugHttpExporterConfiguration {
-
+    private String host = "0.0.0.0";
     private int port = 8000;
     private int limit = 1024;
+
+    public String getHost() {
+      return host;
+    }
+
+    public void setHost(final String host) {
+      this.host = host;
+    }
 
     private int getPort() {
       return port;

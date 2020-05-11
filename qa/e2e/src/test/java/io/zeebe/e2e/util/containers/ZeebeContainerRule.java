@@ -10,6 +10,7 @@ package io.zeebe.e2e.util.containers;
 import io.zeebe.client.ZeebeClient;
 import io.zeebe.containers.ZeebeBrokerContainer;
 import io.zeebe.containers.ZeebePort;
+import io.zeebe.e2e.util.containers.debug.DebugHttpExporterClient;
 import io.zeebe.e2e.util.containers.hazelcast.HazelcastContainer;
 import io.zeebe.e2e.util.containers.hazelcast.HazelcastRingBufferClient;
 import io.zeebe.e2e.util.record.RecordRepository;
@@ -22,30 +23,38 @@ public final class ZeebeContainerRule extends ExternalResource {
   private static final String HAZELCAST_RING_BUFFER_NAME = "zeebe";
   private static final String ZEEBE_CONTAINER_ALIAS = "zeebe";
   private static final String HAZELCAST_CONTAINER_ALIAS = "hazelcast";
+  private static final int DEBUG_HTTP_EXPORTER_PORT = 8000;
+  private static final String ZEEBE_VERSION = "current-test"; // "0.23.1";
 
   private final Network network = Network.newNetwork();
   private final ZeebeBrokerContainer zeebe = defaultZeebeContainer();
   private final HazelcastContainer hazelcast = defaultHazelcastContainer();
 
   private HazelcastRingBufferClient ringBufferClient;
+  private DebugHttpExporterClient httpExporterClient;
 
   @Override
   protected void before() {
-    hazelcast.start();
+    // hazelcast.start();
     zeebe.start();
 
-    ringBufferClient = newRingBufferClient();
-    ringBufferClient.start();
+    httpExporterClient = newHttpExporterClient();
+    httpExporterClient.start();
+    // ringBufferClient = newRingBufferClient();
+    // ringBufferClient.start();
   }
 
   @Override
   protected void after() {
-    if (ringBufferClient != null) {
-      ringBufferClient.stop();
+    //    if (ringBufferClient != null) {
+    //      ringBufferClient.stop();
+    //    }
+    if (httpExporterClient != null) {
+      httpExporterClient.stop();
     }
 
     zeebe.stop();
-    hazelcast.stop();
+    // hazelcast.stop();
   }
 
   public ZeebeClient newZeebeClient() {
@@ -56,9 +65,18 @@ public final class ZeebeContainerRule extends ExternalResource {
   }
 
   public RecordRepository newRecordRepository() {
-    final var streamer = new RecordRepository();
-    ringBufferClient.addListener(new RecordRepositoryHazelcastAdapter(streamer));
-    return streamer;
+    final var repository = new RecordRepository();
+    final var listener = new RecordRepositoryExporterClientListener(repository);
+
+    if (ringBufferClient != null) {
+      ringBufferClient.addListener(listener);
+    }
+
+    if (httpExporterClient != null) {
+      httpExporterClient.addListener(listener);
+    }
+
+    return repository;
   }
 
   public HazelcastRingBufferClient newRingBufferClient() {
@@ -68,19 +86,38 @@ public final class ZeebeContainerRule extends ExternalResource {
         .build();
   }
 
+  public DebugHttpExporterClient newHttpExporterClient() {
+    return DebugHttpExporterClient.builder()
+        .withPort(zeebe.getMappedPort(DEBUG_HTTP_EXPORTER_PORT))
+        .build();
+  }
+
   private ZeebeBrokerContainer defaultZeebeContainer() {
     final var zeebeContainer =
-        new ZeebeBrokerContainer("0.23.1")
+        new ZeebeBrokerContainer(ZEEBE_VERSION)
             .withNetwork(network)
             .withNetworkAliases(ZEEBE_CONTAINER_ALIAS)
             .withDebug(false);
-    return configureHazelcastExporter(zeebeContainer);
+    // return configureHazelcastExporter(zeebeContainer);
+    return configureDebugHttpExporter(zeebeContainer);
   }
 
   private HazelcastContainer defaultHazelcastContainer() {
     return new HazelcastContainer()
         .withNetwork(network)
         .withNetworkAliases(HAZELCAST_CONTAINER_ALIAS);
+  }
+
+  private ZeebeBrokerContainer configureDebugHttpExporter(
+      final ZeebeBrokerContainer zeebeContainer) {
+    zeebeContainer.addExposedPorts(DEBUG_HTTP_EXPORTER_PORT);
+    return zeebeContainer
+        .withEnv(
+            "ZEEBE_BROKER_EXPORTERS_DEBUGHTTP_CLASSNAME",
+            "io.zeebe.broker.exporter.debug.DebugHttpExporter")
+        .withEnv("ZEEBE_BROKER_EXPORTERS_DEBUGHTTP_ARGS_HOST", "0.0.0.0")
+        .withEnv(
+            "ZEEBE_BROKER_EXPORTERS_DEBUGHTTP_ARGS_PORT", String.valueOf(DEBUG_HTTP_EXPORTER_PORT));
   }
 
   private ZeebeBrokerContainer configureHazelcastExporter(

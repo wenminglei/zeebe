@@ -19,32 +19,7 @@
 
     <dependency>
       <groupId>io.zeebe</groupId>
-      <artifactId>zeebe-logstreams</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>io.zeebe</groupId>
-      <artifactId>zeebe-workflow-engine</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>io.zeebe</groupId>
       <artifactId>zeebe-client-java</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>io.zeebe</groupId>
-      <artifactId>zeebe-gateway</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>io.zeebe</groupId>
-      <artifactId>zeebe-util</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>io.zeebe</groupId>
-      <artifactId>zeebe-exporter-api</artifactId>
     </dependency>
 
     <dependency>
@@ -54,27 +29,7 @@
 
     <dependency>
       <groupId>io.zeebe</groupId>
-      <artifactId>zeebe-protocol-impl</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>io.zeebe</groupId>
       <artifactId>zeebe-protocol</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>io.zeebe</groupId>
-      <artifactId>atomix-cluster</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>io.zeebe</groupId>
-      <artifactId>atomix-utils</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>io.zeebe</groupId>
-      <artifactId>atomix</artifactId>
     </dependency>
 
     <dependency>
@@ -96,13 +51,33 @@
     <dependency>
       <groupId>io.zeebe.hazelcast</groupId>
       <artifactId>zeebe-hazelcast-exporter</artifactId>
-      <version>0.9.0-alpha1</version>
+      <version>0.9.0</version>
     </dependency>
 
     <dependency>
-      <groupId>io.zeebe.hazelcast</groupId>
-      <artifactId>zeebe-hazelcast-connector</artifactId>
-      <version>0.9.0-alpha1</version>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>com.hazelcast</groupId>
+      <artifactId>hazelcast</artifactId>
+      <version>4.0.1</version>
+    </dependency>
+
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-stub</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-netty</artifactId>
     </dependency>
 
     <dependency>
@@ -111,55 +86,31 @@
       <version>0.32.0</version>
     </dependency>
 
-    <dependency>
-      <groupId>org.awaitility</groupId>
-      <artifactId>awaitility</artifactId>
-      <version>4.0.2</version>
-      <scope>test</scope>
-    </dependency>
+<!--    <dependency>-->
+<!--      <groupId>org.awaitility</groupId>-->
+<!--      <artifactId>awaitility</artifactId>-->
+<!--      <version>4.0.2</version>-->
+<!--      <scope>test</scope>-->
+<!--    </dependency>-->
 
     <dependency>
       <groupId>io.zeebe</groupId>
       <artifactId>zeebe-test-util</artifactId>
-      <scope>test</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>io.zeebe</groupId>
-      <artifactId>zeebe-broker</artifactId>
-      <type>test-jar</type>
-      <classifier>tests</classifier>
-      <scope>test</scope>
     </dependency>
 
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
-      <scope>test</scope>
     </dependency>
 
     <dependency>
       <groupId>org.assertj</groupId>
       <artifactId>assertj-core</artifactId>
-      <scope>test</scope>
     </dependency>
 
     <dependency>
       <groupId>io.zeebe</groupId>
       <artifactId>zeebe-protocol-asserts</artifactId>
-      <scope>test</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>org.hamcrest</groupId>
-      <artifactId>hamcrest</artifactId>
-      <scope>test</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>org.springframework</groupId>
-      <artifactId>spring-core</artifactId>
-      <scope>test</scope>
     </dependency>
   </dependencies>
 
@@ -176,7 +127,7 @@
               <goal>copy</goal>
             </goals>
             <configuration>
-              <artifact>io.zeebe.hazelcast:zeebe-hazelcast-exporter:0.9.0-alpha1:jar:jar-with-dependencies</artifact>
+              <artifact>io.zeebe.hazelcast:zeebe-hazelcast-exporter:0.9.0:jar:jar-with-dependencies</artifact>
               <outputDirectory>${project.basedir}/src/test/resources/</outputDirectory>
               <stripClassifier>true</stripClassifier>
               <stripVersion>true</stripVersion>

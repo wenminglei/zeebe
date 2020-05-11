@@ -7,141 +7,124 @@
  */
 package io.zeebe.broker.exporter.debug;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.google.common.base.Charsets;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpServer;
+import io.grpc.Server;
+import io.grpc.netty.NettyServerBuilder;
+import io.grpc.stub.StreamObserver;
+import io.zeebe.broker.exporter.debug.protocol.ExporterGrpc;
+import io.zeebe.broker.exporter.debug.protocol.ExporterOuterClass.FetchRecordsRequest;
+import io.zeebe.broker.exporter.debug.protocol.ExporterOuterClass.JsonRecord;
 import io.zeebe.protocol.record.Record;
-import io.zeebe.util.StreamUtil;
-import io.zeebe.util.collection.Tuple;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
-import java.nio.charset.Charset;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.LinkedList;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
-public final class DebugHttpServer {
+public final class DebugHttpServer extends ExporterGrpc.ExporterImplBase {
 
-  private static final Charset CHARSET = Charsets.UTF_8;
-  private static final String[] RESOURCE_NAMES =
-      new String[] {
-        "index.html",
-        "bootstrap-4.1.3.min.css",
-        "bootstrap-4.1.3.min.js",
-        "jquery-3.3.1.slim.min.js",
-        "mustache-3.0.0.min.js"
-      };
+  private final InetSocketAddress address;
+  private final int maxSize;
+  private final Lock recordsLock;
+  private final Condition recordsSignalCondition;
+  private final LinkedList<Record> records;
 
-  private static final Map<String, String> CONTENT_TYPES = new HashMap<>();
+  private Server server;
 
-  static {
-    CONTENT_TYPES.put(".css", "text/css");
-    CONTENT_TYPES.put(".html", "text/html");
-    CONTENT_TYPES.put(".js", "text/javascript");
-    CONTENT_TYPES.put(".json", "application/json");
+  public DebugHttpServer(final String host, final int port, final int maxSize) {
+    this.address = new InetSocketAddress(host, port);
+    this.maxSize = maxSize;
+
+    this.recordsLock = new ReentrantLock();
+    this.recordsSignalCondition = recordsLock.newCondition();
+    this.records = new LinkedList<>();
   }
 
-  private final int maxSize;
-  private final Map<String, byte[]> resources;
-  private final LinkedList<String> records;
-  private HttpServer server;
+  public void start() {
+    stop();
 
-  public DebugHttpServer(final int port, final int maxSize) {
-    this.maxSize = maxSize;
-    server = startHttpServer(port);
-    resources = loadResources();
-    records = new LinkedList<>();
+    server = NettyServerBuilder.forAddress(address).addService(this).build();
+
+    try {
+      server.start();
+    } catch (final IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   public void close() {
+    stop();
+    records.clear();
+  }
+
+  public void stop() {
     if (server != null) {
-      server.stop(0);
+      server.shutdownNow();
+      try {
+        server.awaitTermination(10, TimeUnit.SECONDS);
+      } catch (final InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+
       server = null;
     }
   }
 
-  private HttpServer startHttpServer(final int port) {
+  public void add(final Record record) {
     try {
-      final HttpServer httpServer = HttpServer.create(new InetSocketAddress(port), 0);
-      httpServer.createContext("/", new RequestHandler());
-      httpServer.start();
-      return server;
-    } catch (final IOException e) {
-      throw new RuntimeException("Failed to start debug exporter http server", e);
+      recordsLock.lockInterruptibly();
+    } catch (final InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return;
+    }
+
+    try {
+      if (records.size() >= maxSize) {
+        records.removeFirst();
+      }
+
+      records.add(record.clone());
+      recordsSignalCondition.signalAll();
+    } finally {
+      recordsLock.unlock();
     }
   }
 
-  @SuppressWarnings("unchecked")
-  private Map<String, byte[]> loadResources() {
-    return Arrays.stream(RESOURCE_NAMES)
-        .map(resourceName -> new Tuple<>(resourceName, loadResource(resourceName)))
-        .collect(Collectors.toConcurrentMap(Tuple::getLeft, Tuple::getRight));
-  }
+  @Override
+  public void fetchRecords(
+      final FetchRecordsRequest request, final StreamObserver<JsonRecord> responseObserver) {
+    final var thread = Thread.currentThread();
+    var index = 0;
 
-  private byte[] loadResource(final String resourceName) {
-    try (final InputStream resourceAsStream =
-        DebugHttpServer.class.getResourceAsStream(resourceName)) {
-      if (resourceAsStream != null) {
-        return StreamUtil.read(resourceAsStream);
-      } else {
-        throw new RuntimeException(
-            "Failed to find resource " + resourceName + " for debug http exporter");
-      }
-    } catch (final IOException e) {
-      throw new RuntimeException(
-          "Failed to read resource " + resourceName + " for debug http exporter", e);
-    }
-  }
-
-  public synchronized void add(final Record record) throws JsonProcessingException {
-    while (records.size() >= maxSize) {
-      records.removeLast();
-    }
-
-    records.addFirst(record.toJson());
-  }
-
-  class RequestHandler implements HttpHandler {
-
-    @Override
-    public void handle(final HttpExchange httpExchange) throws IOException {
-      String path = httpExchange.getRequestURI().getPath().substring(1);
-      if (path.isEmpty()) {
-        path = "index.html";
+    while (!thread.isInterrupted()) {
+      try {
+        recordsLock.lockInterruptibly();
+      } catch (final InterruptedException e) {
+        thread.interrupt();
+        responseObserver.onCompleted();
+        return;
       }
 
-      final String extension = path.substring(path.lastIndexOf('.'));
-      final String contentType = CONTENT_TYPES.get(extension);
-      if (contentType != null) {
-        httpExchange.getResponseHeaders().add("Content-Type", contentType);
-      }
-
-      final byte[] response;
-      if ("records.json".equals(path)) {
-        response = getRecords();
-      } else {
-        response = resources.get(path);
-      }
-
-      if (response.length > 0) {
-        httpExchange.sendResponseHeaders(200, response.length);
-        try (final OutputStream outputStream = httpExchange.getResponseBody()) {
-          outputStream.write(response);
+      final Record record;
+      try {
+        while (index >= records.size()) {
+          try {
+            recordsSignalCondition.await(5, TimeUnit.SECONDS);
+          } catch (final InterruptedException e) {
+            thread.interrupt();
+            responseObserver.onCompleted();
+            return;
+          }
         }
-      } else {
-        httpExchange.sendResponseHeaders(404, 0);
-      }
-    }
 
-    private byte[] getRecords() {
-      final String json = "[" + String.join(",", records) + "]";
-      return json.getBytes(CHARSET);
+        record = records.get(index++);
+      } finally {
+        recordsLock.unlock();
+      }
+
+      responseObserver.onNext(JsonRecord.newBuilder().setSerialized(record.toJson()).build());
     }
   }
 }
