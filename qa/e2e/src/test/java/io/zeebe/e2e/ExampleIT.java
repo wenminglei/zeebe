@@ -9,7 +9,9 @@ package io.zeebe.e2e;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.zeebe.e2e.util.containers.ZeebeContainerRule;
+import io.zeebe.broker.system.configuration.ClusterCfg;
+import io.zeebe.e2e.util.containers.ZeebeClusterRule;
+import io.zeebe.e2e.util.containers.ZeebeElasticClusterRule;
 import io.zeebe.model.bpmn.Bpmn;
 import io.zeebe.protocol.Protocol;
 import io.zeebe.protocol.record.Assertions;
@@ -17,19 +19,34 @@ import io.zeebe.protocol.record.RecordType;
 import io.zeebe.protocol.record.ValueType;
 import io.zeebe.protocol.record.intent.DeploymentIntent;
 import io.zeebe.protocol.record.value.deployment.ResourceType;
-import org.junit.Rule;
+import io.zeebe.util.VersionUtil;
+import java.time.Duration;
+import org.junit.ClassRule;
 import org.junit.Test;
 
 public final class ExampleIT {
-  @Rule public final ZeebeContainerRule containerRule = new ZeebeContainerRule();
+  @ClassRule
+  public static final ZeebeElasticClusterRule CLUSTER =
+      new ZeebeElasticClusterRule(
+          new ZeebeClusterRule(VersionUtil.getPreviousVersion(), getClusterConfig()));
+
+  private static ClusterCfg getClusterConfig() {
+    final var config = new ClusterCfg();
+    config.setClusterSize(3);
+    config.setReplicationFactor(3);
+    config.setPartitionsCount(3);
+    config.setClusterName("zeebe-cluster");
+
+    return config;
+  }
 
   @Test
   public void shouldDeployWorkflow() {
     // given
     final var workflow =
         Bpmn.createExecutableProcess("process").startEvent("start").endEvent("end").done();
-    final var client = containerRule.newZeebeClient();
-    final var repository = containerRule.newRecordRepository();
+    final var client = CLUSTER.getClient();
+    final var repository = CLUSTER.getRecordRepository();
 
     // when
     client.newDeployCommand().addWorkflowModel(workflow, "process.bpmn").send().join();
