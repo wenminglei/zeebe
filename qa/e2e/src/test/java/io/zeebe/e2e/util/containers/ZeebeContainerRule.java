@@ -10,6 +10,7 @@ package io.zeebe.e2e.util.containers;
 import io.zeebe.client.ZeebeClient;
 import io.zeebe.containers.ZeebeBrokerContainer;
 import io.zeebe.containers.ZeebePort;
+import io.zeebe.containers.ZeebeStandaloneGatewayContainer;
 import io.zeebe.e2e.util.containers.debug.DebugHttpExporterClient;
 import io.zeebe.e2e.util.containers.elastic.ElasticExporterClient;
 import io.zeebe.e2e.util.containers.hazelcast.HazelcastContainer;
@@ -26,14 +27,17 @@ public final class ZeebeContainerRule extends ExternalResource {
 
   private static final String ELASTIC_INDEX_PREFIX = "zeebe-record";
   private static final String HAZELCAST_RING_BUFFER_NAME = "zeebe";
-  private static final String ZEEBE_CONTAINER_ALIAS = "zeebe";
+  private static final String BROKER_CONTAINER_ALIAS = "broker";
   private static final String HAZELCAST_CONTAINER_ALIAS = "hazelcast";
   private static final int DEBUG_HTTP_EXPORTER_PORT = 8000;
   private static final String ZEEBE_VERSION = "0.23.1";
   private static final String ELASTIC_CONTAINER_ALIAS = "elastic";
+  private static final String GATEWAY_NETWORK_ALIAS = "gateway";
+  private static final String ZEEBE_CLUSTER_NAME = "zeebe-cluster";
 
   private final Network network = Network.newNetwork();
-  private final ZeebeBrokerContainer zeebe = defaultZeebeContainer();
+  private final ZeebeBrokerContainer broker = defaultBrokerContainer();
+  private final ZeebeStandaloneGatewayContainer gateway = defaultGatewayContainer();
   private final HazelcastContainer hazelcast = defaultHazelcastContainer();
   private final ElasticsearchContainer elastic = defaultElasticContainer();
 
@@ -45,7 +49,8 @@ public final class ZeebeContainerRule extends ExternalResource {
   protected void before() {
     // hazelcast.start();
     elastic.start();
-    zeebe.start();
+    broker.start();
+    gateway.start();
 
     // httpExporterClient = newHttpExporterClient();
     // httpExporterClient.start();
@@ -58,9 +63,10 @@ public final class ZeebeContainerRule extends ExternalResource {
 
   @Override
   protected void after() {
-    //    if (ringBufferClient != null) {
-    //      ringBufferClient.stop();
-    //    }
+    if (ringBufferClient != null) {
+      ringBufferClient.stop();
+    }
+
     if (httpExporterClient != null) {
       httpExporterClient.stop();
     }
@@ -69,14 +75,15 @@ public final class ZeebeContainerRule extends ExternalResource {
       elasticExporterClient.stop();
     }
 
-    zeebe.stop();
+    gateway.stop();
+    broker.stop();
     elastic.stop();
     // hazelcast.stop();
   }
 
   public ZeebeClient newZeebeClient() {
     return ZeebeClient.newClientBuilder()
-        .brokerContactPoint(zeebe.getExternalAddress(ZeebePort.GATEWAY))
+        .brokerContactPoint(gateway.getExternalAddress(ZeebePort.GATEWAY))
         .usePlaintext()
         .build();
   }
@@ -109,7 +116,7 @@ public final class ZeebeContainerRule extends ExternalResource {
 
   public DebugHttpExporterClient newHttpExporterClient() {
     return DebugHttpExporterClient.builder()
-        .withPort(zeebe.getMappedPort(DEBUG_HTTP_EXPORTER_PORT))
+        .withPort(broker.getMappedPort(DEBUG_HTTP_EXPORTER_PORT))
         .build();
   }
 
@@ -119,15 +126,27 @@ public final class ZeebeContainerRule extends ExternalResource {
         .build();
   }
 
-  private ZeebeBrokerContainer defaultZeebeContainer() {
+  private ZeebeBrokerContainer defaultBrokerContainer() {
     final var zeebeContainer =
         new ZeebeBrokerContainer(ZEEBE_VERSION)
             .withNetwork(network)
-            .withNetworkAliases(ZEEBE_CONTAINER_ALIAS)
+            .withNetworkAliases(BROKER_CONTAINER_ALIAS)
+            .withEmbeddedGateway(false)
+            .withEnv("ZEEBE_BROKER_CLUSTER_CLUSTERNAME", ZEEBE_CLUSTER_NAME)
             .withDebug(false);
     // return configureHazelcastExporter(zeebeContainer);
     // return configureDebugHttpExporter(zeebeContainer);
     return configureElasticExporter(zeebeContainer);
+  }
+
+  private ZeebeStandaloneGatewayContainer defaultGatewayContainer() {
+    return new ZeebeStandaloneGatewayContainer(ZEEBE_VERSION)
+        .withNetwork(network)
+        .withNetworkAliases(GATEWAY_NETWORK_ALIAS)
+        .withClusterHost(GATEWAY_NETWORK_ALIAS)
+        .withClusterMemberId(GATEWAY_NETWORK_ALIAS)
+        .withEnv("ZEEBE_GATEWAY_CLUSTER_CLUSTERNAME", ZEEBE_CLUSTER_NAME)
+        .withEnv("ZEEBE_GATEWAY_CLUSTER_CONTACTPOINT", broker.getContactPoint());
   }
 
   private HazelcastContainer defaultHazelcastContainer() {
