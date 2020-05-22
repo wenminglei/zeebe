@@ -5,12 +5,13 @@
  * Licensed under the Zeebe Community License 1.0. You may not use this file
  * except in compliance with the Zeebe Community License 1.0.
  */
-package io.zeebe.e2e.util.containers.elastic;
+package io.zeebe.e2e.util.exporters.elastic;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.zeebe.e2e.util.containers.ExporterClientListener;
-import io.zeebe.e2e.util.containers.ObservableExporterClient;
+import io.zeebe.e2e.util.exporters.ExporterClient;
+import io.zeebe.e2e.util.exporters.ExporterClientListener;
+import io.zeebe.e2e.util.exporters.ObservableExporterClient;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -26,7 +27,7 @@ import org.elasticsearch.client.RestClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public final class ElasticExporterClient implements ObservableExporterClient {
+public final class ElasticExporterClient implements ExporterClient, ObservableExporterClient {
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final Logger LOGGER = LoggerFactory.getLogger(ElasticExporterClient.class);
   private static final int SEARCH_SIZE = 100;
@@ -65,6 +66,7 @@ public final class ElasticExporterClient implements ObservableExporterClient {
     return LOGGER;
   }
 
+  @Override
   public void start() {
     executorService = Executors.newSingleThreadExecutor();
     consumeTask = executorService.submit(this::consumeRecords);
@@ -72,6 +74,7 @@ public final class ElasticExporterClient implements ObservableExporterClient {
     LOGGER.info("Started elastic exporter client on {}", client.getNodes());
   }
 
+  @Override
   public void stop() {
     LOGGER.info("Closing elastic exporter client...");
 

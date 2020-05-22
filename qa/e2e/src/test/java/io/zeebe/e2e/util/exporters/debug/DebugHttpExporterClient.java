@@ -5,7 +5,7 @@
  * Licensed under the Zeebe Community License 1.0. You may not use this file
  * except in compliance with the Zeebe Community License 1.0.
  */
-package io.zeebe.e2e.util.containers.debug;
+package io.zeebe.e2e.util.exporters.debug;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.grpc.Context;
@@ -15,8 +15,9 @@ import io.grpc.stub.StreamObserver;
 import io.zeebe.broker.exporter.debug.protocol.ExporterGrpc;
 import io.zeebe.broker.exporter.debug.protocol.ExporterOuterClass.FetchRecordsRequest;
 import io.zeebe.broker.exporter.debug.protocol.ExporterOuterClass.JsonRecord;
-import io.zeebe.e2e.util.containers.ExporterClientListener;
-import io.zeebe.e2e.util.containers.ObservableExporterClient;
+import io.zeebe.e2e.util.exporters.ExporterClient;
+import io.zeebe.e2e.util.exporters.ExporterClientListener;
+import io.zeebe.e2e.util.exporters.ObservableExporterClient;
 import io.zeebe.protocol.immutables.record.RecordTypeReference;
 import java.io.IOException;
 import java.util.Set;
@@ -27,19 +28,27 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public final class DebugHttpExporterClient implements ObservableExporterClient {
+public final class DebugHttpExporterClient implements ExporterClient, ObservableExporterClient {
+  static final RetryPredicate DEFAULT_ERROR_HANDLER = error -> false;
   private static final RecordTypeReference<?> TYPE_REFERENCE = new RecordTypeReference<>();
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final Logger LOGGER = LoggerFactory.getLogger(DebugHttpExporterClient.class);
-
   private final ExporterGrpc.ExporterStub service;
   private final Set<ExporterClientListener> listeners;
+  private final RetryPredicate retryPredicate;
 
   private ExecutorService executorService;
   private CancellableContext grpcContext;
 
   public DebugHttpExporterClient(final ManagedChannel channel) {
+    this(channel, DEFAULT_ERROR_HANDLER);
+  }
+
+  public DebugHttpExporterClient(
+      final ManagedChannel channel, final RetryPredicate retryPredicate) {
     this.service = ExporterGrpc.newStub(channel).withExecutor(executorService).withWaitForReady();
+    this.retryPredicate = retryPredicate;
+
     this.listeners = new CopyOnWriteArraySet<>();
   }
 
@@ -47,12 +56,13 @@ public final class DebugHttpExporterClient implements ObservableExporterClient {
     return new DebugHttpExporterClientBuilder();
   }
 
+  @Override
   public void start() {
     executorService = Executors.newSingleThreadExecutor();
-    grpcContext = Context.current().withCancellation();
-    grpcContext.run(this::consumeRecords);
+    scheduleCancellableRecordConsumption();
   }
 
+  @Override
   public void stop() {
     if (grpcContext != null) {
       grpcContext.cancel(null);
@@ -90,9 +100,19 @@ public final class DebugHttpExporterClient implements ObservableExporterClient {
     return LOGGER;
   }
 
+  private void scheduleCancellableRecordConsumption() {
+    if (grpcContext != null) {
+      grpcContext.cancel(null);
+    }
+
+    grpcContext = Context.current().withCancellation();
+    executorService.submit(() -> grpcContext.run(this::consumeRecords));
+  }
+
   private void consumeRecords() {
     final var request = FetchRecordsRequest.newBuilder().build();
     service
+        .withExecutor(executorService)
         .withDeadlineAfter(30, TimeUnit.SECONDS)
         .fetchRecords(
             request,
@@ -104,8 +124,12 @@ public final class DebugHttpExporterClient implements ObservableExporterClient {
               }
 
               @Override
-              public void onError(final Throwable throwable) {
-                LOGGER.error("Debug exporter server returned an unexpected error", throwable);
+              public void onError(final Throwable error) {
+                if (retryPredicate.shouldRetry(error)) {
+                  scheduleCancellableRecordConsumption();
+                } else {
+                  LOGGER.error("Debug exporter server returned an unexpected error", error);
+                }
               }
 
               @Override

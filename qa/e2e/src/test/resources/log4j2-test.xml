@@ -9,12 +9,10 @@
   </Appenders>
 
   <Loggers>
-    <Logger name="io.zeebe.e2e.util.containers.ZeebeClusterRule.brokers" level="error" />
-    <Logger name="io.zeebe.e2e.util.containers.ZeebeClusterRule.gateways" level="error" />
-    <Logger name="io.zeebe.e2e.util.containers.ZeebeClusterRule.elastic" level="error" />
-
-    <Logger name="io.zeebe" level="debug"/>
-    <Logger name="com.hazelcast" level="warn"/>
+    <Logger name="io.zeebe" level="DEBUG" />
+    <Logger name="io.zeebe.e2e.util.containers.DockerClusterRule.brokers" level="WARN" />
+    <Logger name="io.zeebe.e2e.util.containers.DockerClusterRule.gateway" level="WARN" />
+    <Logger name="io.zeebe.e2e.util.containers.DockerElasticStreamableClusterRule.elastic" level="WARN" />
 
     <Root level="info">
       <AppenderRef ref="Console"/>

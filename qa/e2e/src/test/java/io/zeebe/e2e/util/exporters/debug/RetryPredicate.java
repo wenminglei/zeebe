@@ -5,15 +5,9 @@
  * Licensed under the Zeebe Community License 1.0. You may not use this file
  * except in compliance with the Zeebe Community License 1.0.
  */
-package io.zeebe.e2e.util.containers;
-
-import io.zeebe.containers.ZeebeBrokerContainer;
+package io.zeebe.e2e.util.exporters.debug;
 
 @FunctionalInterface
-public interface BrokerConfigurator {
-  ZeebeBrokerContainer configure(final ZeebeBrokerContainer brokerContainer);
-
-  static BrokerConfigurator identity() {
-    return b -> b;
-  }
+public interface RetryPredicate {
+  boolean shouldRetry(final Throwable error);
 }

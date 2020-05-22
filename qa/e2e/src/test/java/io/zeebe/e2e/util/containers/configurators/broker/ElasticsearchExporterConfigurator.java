@@ -1,17 +1,23 @@
-package io.zeebe.e2e.util.containers.configurators;
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH under
+ * one or more contributor license agreements. See the NOTICE file distributed
+ * with this work for additional information regarding copyright ownership.
+ * Licensed under the Zeebe Community License 1.0. You may not use this file
+ * except in compliance with the Zeebe Community License 1.0.
+ */
+package io.zeebe.e2e.util.containers.configurators.broker;
 
 import io.zeebe.containers.ZeebeBrokerContainer;
-import io.zeebe.e2e.util.containers.BrokerConfigurator;
 import io.zeebe.exporter.ElasticsearchExporter;
 import io.zeebe.exporter.ElasticsearchExporterConfiguration;
 
-public final class ElasticsearchExporterConfigurator implements BrokerConfigurator {
-  private final String exporterId;
+public final class ElasticsearchExporterConfigurator
+    extends AbstractExporterConfigurator<ElasticsearchExporterConfigurator> {
   private final ElasticsearchExporterConfiguration exporterConfig;
 
   public ElasticsearchExporterConfigurator(
       final String exporterId, final ElasticsearchExporterConfiguration exporterConfig) {
-    this.exporterId = exporterId;
+    super(exporterId);
     this.exporterConfig = exporterConfig;
   }
 
@@ -40,16 +46,5 @@ public final class ElasticsearchExporterConfigurator implements BrokerConfigurat
         .withEnv(brokerContainer, "ARGS_BULK_SIZE", exporterConfig.bulk.size);
 
     return brokerContainer;
-  }
-
-  private ElasticsearchExporterConfigurator withEnv(
-      final ZeebeBrokerContainer container, final String suffix, final Object rawValue) {
-    final var key =
-        String.format(
-            "ZEEBE_BROKER_EXPORTERS_%s_%s", exporterId.toUpperCase(), suffix.toUpperCase());
-    final var value = String.valueOf(rawValue);
-
-    container.withEnv(key, value);
-    return this;
   }
 }

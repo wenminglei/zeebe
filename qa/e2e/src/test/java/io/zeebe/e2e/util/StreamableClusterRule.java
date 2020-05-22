@@ -5,15 +5,10 @@
  * Licensed under the Zeebe Community License 1.0. You may not use this file
  * except in compliance with the Zeebe Community License 1.0.
  */
-package io.zeebe.e2e.util.containers;
+package io.zeebe.e2e.util;
 
-import io.zeebe.containers.ZeebeBrokerContainer;
+import io.zeebe.e2e.util.record.RecordRepository;
 
-@FunctionalInterface
-public interface BrokerConfigurator {
-  ZeebeBrokerContainer configure(final ZeebeBrokerContainer brokerContainer);
-
-  static BrokerConfigurator identity() {
-    return b -> b;
-  }
+public interface StreamableClusterRule extends ClusterRule {
+  RecordRepository getRecordRepository();
 }

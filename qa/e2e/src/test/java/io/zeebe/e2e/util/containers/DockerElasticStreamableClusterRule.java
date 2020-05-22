@@ -1,42 +1,50 @@
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH under
+ * one or more contributor license agreements. See the NOTICE file distributed
+ * with this work for additional information regarding copyright ownership.
+ * Licensed under the Zeebe Community License 1.0. You may not use this file
+ * except in compliance with the Zeebe Community License 1.0.
+ */
 package io.zeebe.e2e.util.containers;
 
-import io.zeebe.broker.system.configuration.ClusterCfg;
-import io.zeebe.client.ZeebeClient;
-import io.zeebe.containers.ZeebeBrokerContainer;
-import io.zeebe.containers.ZeebeStandaloneGatewayContainer;
-import io.zeebe.e2e.util.containers.configurators.ElasticsearchExporterConfigurator;
-import io.zeebe.e2e.util.containers.elastic.ElasticExporterClient;
+import io.zeebe.e2e.util.ClusterRule;
+import io.zeebe.e2e.util.DelegatingClusterRule;
+import io.zeebe.e2e.util.StreamableClusterRule;
+import io.zeebe.e2e.util.containers.configurators.broker.ElasticsearchExporterConfigurator;
+import io.zeebe.e2e.util.exporters.elastic.ElasticExporterClient;
 import io.zeebe.e2e.util.record.RecordRepository;
 import io.zeebe.exporter.ElasticsearchExporterConfiguration;
-import java.util.Map;
 import java.util.Optional;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
 import org.junit.rules.ExternalResource;
 import org.slf4j.LoggerFactory;
+import org.testcontainers.containers.Network;
 import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.elasticsearch.ElasticsearchContainer;
 import org.testcontainers.lifecycle.Startable;
 
-public class ZeebeElasticClusterRule extends ExternalResource {
+public class DockerElasticStreamableClusterRule extends ExternalResource
+    implements StreamableClusterRule, DelegatingClusterRule {
   private static final String DEFAULT_EXPORTER_ID = "elastic";
   private static final String NETWORK_ALIAS = "elastic";
   private static final String DOCKER_IMAGE = "docker.elastic.co/elasticsearch/elasticsearch";
 
-  private final ZeebeClusterRule clusterRule;
+  private final DockerClusterRule clusterRule;
 
   private ElasticsearchContainer elasticContainer;
   private ElasticsearchExporterConfiguration exporterConfig;
   private ElasticExporterClient exporterClient;
   private RecordRepository recordRepository;
 
-  public ZeebeElasticClusterRule(final ZeebeClusterRule clusterRule) {
+  public DockerElasticStreamableClusterRule(final DockerClusterRule clusterRule) {
     this.clusterRule = clusterRule;
   }
 
   @Override
   public void before() throws Throwable {
     resolveExporterConfig();
+    resolveNetwork();
 
     final var configurator =
         new ElasticsearchExporterConfigurator(DEFAULT_EXPORTER_ID, exporterConfig);
@@ -57,18 +65,19 @@ public class ZeebeElasticClusterRule extends ExternalResource {
   @Override
   public void after() {
     Optional.ofNullable(exporterClient).ifPresent(ElasticExporterClient::stop);
+    Optional.ofNullable(recordRepository).ifPresent(RecordRepository::reset);
     clusterRule.after();
-    Optional.ofNullable(exporterClient).ifPresent(ElasticExporterClient::stop);
     Optional.ofNullable(elasticContainer).ifPresent(Startable::stop);
   }
 
-  public ZeebeElasticClusterRule withExporterConfig(
+  public DockerElasticStreamableClusterRule withExporterConfig(
       final ElasticsearchExporterConfiguration exporterConfig) {
     this.exporterConfig = exporterConfig;
     return this;
   }
 
-  public ZeebeElasticClusterRule withRecordRepository(final RecordRepository recordRepository) {
+  public DockerElasticStreamableClusterRule withRecordRepository(
+      final RecordRepository recordRepository) {
     this.recordRepository = recordRepository;
     return this;
   }
@@ -77,38 +86,25 @@ public class ZeebeElasticClusterRule extends ExternalResource {
     return elasticContainer;
   }
 
+  @Override
   public RecordRepository getRecordRepository() {
     return recordRepository;
   }
 
-  public ZeebeClient getClient() {
-    return clusterRule.getClient();
-  }
-
-  public ZeebeStandaloneGatewayContainer getGateway() {
-    return clusterRule.getGateway();
-  }
-
-  public Map<Integer, ZeebeBrokerContainer> getBrokers() {
-    return clusterRule.getBrokers();
-  }
-
-  public ZeebeBrokerContainer getBroker(final int nodeId) {
-    return clusterRule.getBroker(nodeId);
-  }
-
-  public ClusterCfg getClusterConfig() {
-    return clusterRule.getClusterConfig();
+  @Override
+  public ClusterRule getClusterRuleDelegate() {
+    return clusterRule;
   }
 
   @SuppressWarnings("java:S2095")
   private ElasticsearchContainer newDefaultElasticContainer() {
     final var version = RestClient.class.getPackage().getImplementationVersion();
-    final var logger = LoggerFactory.getLogger(ZeebeClusterRule.class + ".elastic");
+    final var logger =
+        LoggerFactory.getLogger(DockerElasticStreamableClusterRule.class.getName() + ".elastic");
     return new ElasticsearchContainer(DOCKER_IMAGE + ":" + version)
         .withNetwork(clusterRule.getNetwork())
         .withNetworkAliases(NETWORK_ALIAS)
-        .withLogConsumer(new Slf4jLogConsumer(logger))
+        .withLogConsumer(new Slf4jLogConsumer(logger, true))
         .withEnv("discovery.type", "single-node");
   }
 
@@ -133,6 +129,13 @@ public class ZeebeElasticClusterRule extends ExternalResource {
     config.url = String.format("http://%s:9200", NETWORK_ALIAS);
 
     exporterConfig = config;
+  }
+
+  private void resolveNetwork() {
+    final var network = clusterRule.getNetwork();
+    if (network == null) {
+      clusterRule.withNetwork(Network.newNetwork());
+    }
   }
 
   private ElasticsearchExporterConfiguration newDefaultExporterConfig() {

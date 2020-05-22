@@ -7,6 +7,7 @@
  */
 package io.zeebe.e2e.util.containers;
 
+import io.zeebe.e2e.util.exporters.ExporterClientListener;
 import io.zeebe.e2e.util.record.RecordRepository;
 import io.zeebe.protocol.record.Record;
 
@@ -20,10 +21,5 @@ public final class RecordRepositoryExporterClientListener implements ExporterCli
   @Override
   public void onExporterClientRecord(final Record<?> record) {
     repository.add(record);
-  }
-
-  @Override
-  public void onExporterClientClose() {
-    repository.reset();
   }
 }

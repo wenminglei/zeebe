@@ -10,8 +10,9 @@ package io.zeebe.e2e;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.zeebe.broker.system.configuration.ClusterCfg;
-import io.zeebe.e2e.util.containers.ZeebeClusterRule;
-import io.zeebe.e2e.util.containers.ZeebeElasticClusterRule;
+import io.zeebe.e2e.util.StreamableClusterRule;
+import io.zeebe.e2e.util.containers.DockerClusterRule;
+import io.zeebe.e2e.util.containers.DockerElasticStreamableClusterRule;
 import io.zeebe.model.bpmn.Bpmn;
 import io.zeebe.protocol.Protocol;
 import io.zeebe.protocol.record.Assertions;
@@ -20,15 +21,19 @@ import io.zeebe.protocol.record.ValueType;
 import io.zeebe.protocol.record.intent.DeploymentIntent;
 import io.zeebe.protocol.record.value.deployment.ResourceType;
 import io.zeebe.util.VersionUtil;
-import java.time.Duration;
 import org.junit.ClassRule;
 import org.junit.Test;
 
 public final class ExampleIT {
   @ClassRule
-  public static final ZeebeElasticClusterRule CLUSTER =
-      new ZeebeElasticClusterRule(
-          new ZeebeClusterRule(VersionUtil.getPreviousVersion(), getClusterConfig()));
+  public static final StreamableClusterRule CLUSTER =
+      new DockerElasticStreamableClusterRule(
+          new DockerClusterRule(VersionUtil.getPreviousVersion(), getClusterConfig()));
+
+  //  @ClassRule
+  //  public static final StreamableClusterRule CLUSTER =
+  //      new DockerDebugHttpStreambleClusterRule(
+  //          new DockerClusterRule("current-test", getClusterConfig()));
 
   private static ClusterCfg getClusterConfig() {
     final var config = new ClusterCfg();

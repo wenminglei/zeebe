@@ -1,189 +1,161 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns="http://maven.apache.org/POM/4.0.0"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
-  <modelVersion>4.0.0</modelVersion>
-  <name>Zeebe E2E Tests</name>
   <artifactId>zeebe-qa-e2e-tests</artifactId>
-  <packaging>jar</packaging>
-
-  <parent>
-    <groupId>io.zeebe</groupId>
-    <artifactId>zeebe-qa</artifactId>
-    <version>0.24.0-SNAPSHOT</version>
-  </parent>
-
   <dependencies>
     <dependency>
-      <groupId>io.zeebe</groupId>
       <artifactId>zeebe-broker</artifactId>
+      <groupId>io.zeebe</groupId>
     </dependency>
 
     <dependency>
-      <groupId>io.zeebe</groupId>
       <artifactId>zeebe-client-java</artifactId>
+      <groupId>io.zeebe</groupId>
     </dependency>
 
     <dependency>
-      <groupId>io.zeebe</groupId>
       <artifactId>zeebe-bpmn-model</artifactId>
-    </dependency>
-
-    <dependency>
       <groupId>io.zeebe</groupId>
+    </dependency>
+
+    <dependency>
       <artifactId>zeebe-protocol</artifactId>
+      <groupId>io.zeebe</groupId>
     </dependency>
 
     <dependency>
-      <groupId>io.grpc</groupId>
       <artifactId>grpc-api</artifactId>
+      <groupId>io.grpc</groupId>
     </dependency>
 
     <dependency>
-      <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
+      <groupId>org.slf4j</groupId>
     </dependency>
 
     <dependency>
-      <groupId>org.elasticsearch.client</groupId>
       <artifactId>elasticsearch-rest-client</artifactId>
+      <groupId>org.elasticsearch.client</groupId>
     </dependency>
 
     <dependency>
-      <groupId>io.zeebe.protocol</groupId>
       <artifactId>zeebe-protocol-immutables</artifactId>
+      <groupId>io.zeebe.protocol</groupId>
       <version>1.0.0-SNAPSHOT</version>
     </dependency>
 
     <dependency>
-      <groupId>io.zeebe.hazelcast</groupId>
-      <artifactId>zeebe-hazelcast-exporter</artifactId>
-      <version>0.9.0</version>
-    </dependency>
-
-    <dependency>
-      <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
+      <groupId>com.fasterxml.jackson.core</groupId>
     </dependency>
 
     <dependency>
-      <groupId>com.hazelcast</groupId>
-      <artifactId>hazelcast</artifactId>
-      <version>4.0.1</version>
-    </dependency>
-
-    <dependency>
-      <groupId>io.grpc</groupId>
       <artifactId>grpc-stub</artifactId>
+      <groupId>io.grpc</groupId>
     </dependency>
 
     <dependency>
-      <groupId>org.testcontainers</groupId>
       <artifactId>testcontainers</artifactId>
+      <groupId>org.testcontainers</groupId>
     </dependency>
 
     <dependency>
-      <groupId>org.testcontainers</groupId>
       <artifactId>elasticsearch</artifactId>
+      <groupId>org.testcontainers</groupId>
       <version>${version.testcontainers}</version>
     </dependency>
 
     <dependency>
-      <groupId>io.grpc</groupId>
       <artifactId>grpc-netty</artifactId>
+      <groupId>io.grpc</groupId>
     </dependency>
 
     <dependency>
-      <groupId>io.grpc</groupId>
       <artifactId>grpc-context</artifactId>
+      <groupId>io.grpc</groupId>
       <version>1.29.0</version>
     </dependency>
 
     <dependency>
-      <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-core</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>io.zeebe</groupId>
-      <artifactId>zeebe-elasticsearch-exporter</artifactId>
-    </dependency>
-
-    <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
-      <artifactId>jackson-annotations</artifactId>
     </dependency>
 
     <dependency>
-      <groupId>org.apache.httpcomponents</groupId>
-      <artifactId>httpcore</artifactId>
-    </dependency>
-
-    <dependency>
+      <artifactId>zeebe-elasticsearch-exporter</artifactId>
       <groupId>io.zeebe</groupId>
+    </dependency>
+
+    <dependency>
+      <artifactId>jackson-annotations</artifactId>
+      <groupId>com.fasterxml.jackson.core</groupId>
+    </dependency>
+
+    <dependency>
+      <artifactId>httpcore</artifactId>
+      <groupId>org.apache.httpcomponents</groupId>
+    </dependency>
+
+    <dependency>
       <artifactId>zeebe-test-container</artifactId>
+      <groupId>io.zeebe</groupId>
       <version>0.32.0</version>
     </dependency>
 
     <dependency>
-      <groupId>org.awaitility</groupId>
       <artifactId>awaitility</artifactId>
-      <version>4.0.2</version>
+      <groupId>org.awaitility</groupId>
       <scope>test</scope>
+      <version>4.0.2</version>
     </dependency>
 
     <dependency>
-      <groupId>io.zeebe</groupId>
       <artifactId>zeebe-test-util</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>org.assertj</groupId>
-      <artifactId>assertj-core</artifactId>
-    </dependency>
-
-    <dependency>
       <groupId>io.zeebe</groupId>
+    </dependency>
+
+    <dependency>
+      <artifactId>junit</artifactId>
+      <groupId>junit</groupId>
+    </dependency>
+
+    <dependency>
+      <artifactId>assertj-core</artifactId>
+      <groupId>org.assertj</groupId>
+    </dependency>
+
+    <dependency>
       <artifactId>zeebe-protocol-asserts</artifactId>
+      <groupId>io.zeebe</groupId>
+    </dependency>
+
+    <dependency>
+      <artifactId>zeebe-util</artifactId>
+      <groupId>io.zeebe</groupId>
     </dependency>
   </dependencies>
 
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-dependency-plugin</artifactId>
-        <executions>
-          <execution>
-            <id>copy-hazelcast</id>
-            <phase>generate-resources</phase>
-            <goals>
-              <goal>copy</goal>
-            </goals>
-            <configuration>
-              <artifact>io.zeebe.hazelcast:zeebe-hazelcast-exporter:0.9.0:jar:jar-with-dependencies</artifact>
-              <outputDirectory>${project.basedir}/src/test/resources/</outputDirectory>
-              <stripClassifier>true</stripClassifier>
-              <stripVersion>true</stripVersion>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-    </plugins>
-  </build>
+  <modelVersion>4.0.0</modelVersion>
+  <name>Zeebe E2E Tests</name>
+
+  <packaging>jar</packaging>
+
+  <parent>
+    <artifactId>zeebe-qa</artifactId>
+    <groupId>io.zeebe</groupId>
+    <version>0.24.0-SNAPSHOT</version>
+  </parent>
 
   <profiles>
     <profile>
-      <id>skip-it</id>
       <activation>
         <property>
           <name>zeebe.it.skip</name>
           <value>true</value>
         </property>
       </activation>
+      <id>skip-it</id>
       <properties>
         <maven.test.skip>true</maven.test.skip>
       </properties>

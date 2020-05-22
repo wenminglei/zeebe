@@ -5,15 +5,16 @@
  * Licensed under the Zeebe Community License 1.0. You may not use this file
  * except in compliance with the Zeebe Community License 1.0.
  */
-package io.zeebe.e2e.util.containers;
+package io.zeebe.e2e.util;
 
 import io.zeebe.containers.ZeebeBrokerContainer;
+import java.util.Map;
 
-@FunctionalInterface
-public interface BrokerConfigurator {
-  ZeebeBrokerContainer configure(final ZeebeBrokerContainer brokerContainer);
+/** A set of extensions to ease inspecting the current state of your cluster */
+public interface ClusterInspector {
+  ZeebeBrokerContainer getLeaderForPartition(final int partitionId);
 
-  static BrokerConfigurator identity() {
-    return b -> b;
-  }
+  void awaitCompleteGatewayTopology();
+
+  Map<Integer, ZeebeBrokerContainer> getLeaders();
 }
