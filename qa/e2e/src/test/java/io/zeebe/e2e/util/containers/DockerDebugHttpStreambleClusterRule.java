@@ -17,6 +17,7 @@ import io.zeebe.e2e.util.containers.configurators.broker.DebugHttpExporterConfig
 import io.zeebe.e2e.util.exporters.ExporterClient;
 import io.zeebe.e2e.util.exporters.debug.DebugHttpExporterClient;
 import io.zeebe.e2e.util.record.RecordRepository;
+import io.zeebe.e2e.util.record.RecordRepositoryExporterClientListener;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;

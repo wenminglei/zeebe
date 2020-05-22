@@ -7,14 +7,13 @@
  */
 package io.zeebe.e2e.util;
 
-import io.zeebe.containers.ZeebeBrokerContainer;
 import java.util.Map;
 
 /** A set of extensions to ease inspecting the current state of your cluster */
 public interface ClusterInspector {
-  ZeebeBrokerContainer getLeaderForPartition(final int partitionId);
+  Integer getLeaderForPartition(final int partitionId);
 
   void awaitCompleteGatewayTopology();
 
-  Map<Integer, ZeebeBrokerContainer> getLeaders();
+  Map<Integer, Integer> getLeaders();
 }

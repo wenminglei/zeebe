@@ -38,6 +38,7 @@
     <version.agrona>1.4.1</version.agrona>
     <version.animal-sniffer>1.18</version.animal-sniffer>
     <version.assertj>3.16.1</version.assertj>
+    <version.awaitility>4.0.2</version.awaitility>
     <version.camunda>7.12.0</version.camunda>
     <version.commons-lang>3.10</version.commons-lang>
     <version.commons-logging>1.2</version.commons-logging>
@@ -189,6 +190,11 @@
         <version>${version.msgpack}</version>
       </dependency>
 
+      <dependency>
+        <artifactId>awaitility</artifactId>
+        <groupId>org.awaitility</groupId>
+        <version>${version.awaitility}</version>
+      </dependency>
 
       <dependency>
         <groupId>junit</groupId>
@@ -301,6 +307,12 @@
       <dependency>
         <groupId>io.grpc</groupId>
         <artifactId>grpc-stub</artifactId>
+        <version>${version.grpc}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>io.grpc</groupId>
+        <artifactId>grpc-context</artifactId>
         <version>${version.grpc}</version>
       </dependency>
 
@@ -497,6 +509,11 @@
         <version>${version.testcontainers}</version>
       </dependency>
 
+      <dependency>
+        <artifactId>elasticsearch</artifactId>
+        <groupId>org.testcontainers</groupId>
+        <version>${version.testcontainers}</version>
+      </dependency>
 
       <dependency>
         <groupId>com.netflix.concurrency-limits</groupId>

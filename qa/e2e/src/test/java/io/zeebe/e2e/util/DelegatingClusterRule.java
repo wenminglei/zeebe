@@ -12,15 +12,9 @@ import io.zeebe.client.ZeebeClient;
 import io.zeebe.containers.ZeebeBrokerContainer;
 import io.zeebe.containers.ZeebeStandaloneGatewayContainer;
 import java.util.Map;
-import org.testcontainers.containers.Network;
 
 public interface DelegatingClusterRule extends ClusterRule {
   ClusterRule getClusterRuleDelegate();
-
-  @Override
-  default Network getNetwork() {
-    return getClusterRuleDelegate().getNetwork();
-  }
 
   @Override
   default ZeebeClient getClient() {

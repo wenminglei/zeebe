@@ -5,10 +5,9 @@
  * Licensed under the Zeebe Community License 1.0. You may not use this file
  * except in compliance with the Zeebe Community License 1.0.
  */
-package io.zeebe.e2e.util.containers;
+package io.zeebe.e2e.util.record;
 
 import io.zeebe.e2e.util.exporters.ExporterClientListener;
-import io.zeebe.e2e.util.record.RecordRepository;
 import io.zeebe.protocol.record.Record;
 
 public final class RecordRepositoryExporterClientListener implements ExporterClientListener {

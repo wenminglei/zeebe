@@ -13,6 +13,7 @@ import io.zeebe.e2e.util.StreamableClusterRule;
 import io.zeebe.e2e.util.containers.configurators.broker.ElasticsearchExporterConfigurator;
 import io.zeebe.e2e.util.exporters.elastic.ElasticExporterClient;
 import io.zeebe.e2e.util.record.RecordRepository;
+import io.zeebe.e2e.util.record.RecordRepositoryExporterClientListener;
 import io.zeebe.exporter.ElasticsearchExporterConfiguration;
 import java.util.Optional;
 import org.apache.http.HttpHost;

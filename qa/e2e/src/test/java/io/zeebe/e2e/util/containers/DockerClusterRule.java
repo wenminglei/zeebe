@@ -105,7 +105,6 @@ public final class DockerClusterRule extends ExternalResource implements Cluster
     return this;
   }
 
-  @Override
   public Network getNetwork() {
     return network;
   }

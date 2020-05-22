@@ -12,7 +12,6 @@ import static org.awaitility.Awaitility.await;
 import io.zeebe.client.api.response.BrokerInfo;
 import io.zeebe.client.api.response.PartitionInfo;
 import io.zeebe.client.api.response.Topology;
-import io.zeebe.containers.ZeebeBrokerContainer;
 import io.zeebe.e2e.util.ClusterInspector;
 import java.time.Duration;
 import java.util.HashMap;
@@ -28,7 +27,7 @@ public class DockerClusterInspector implements ClusterInspector {
   }
 
   @Override
-  public ZeebeBrokerContainer getLeaderForPartition(final int partitionId) {
+  public Integer getLeaderForPartition(final int partitionId) {
     return await()
         .atMost(Duration.ofSeconds(10))
         .until(() -> tryGetLeaderForPartition(partitionId), Optional::isPresent)
@@ -41,29 +40,28 @@ public class DockerClusterInspector implements ClusterInspector {
   }
 
   @Override
-  public Map<Integer, ZeebeBrokerContainer> getLeaders() {
+  public Map<Integer, Integer> getLeaders() {
     final var topology = getTopology();
     final var brokers = topology.getBrokers();
-    final var leaders = new HashMap<Integer, ZeebeBrokerContainer>();
+    final var leaders = new HashMap<Integer, Integer>();
 
     for (final var broker : brokers) {
       broker.getPartitions().stream()
           .filter(PartitionInfo::isLeader)
           .map(PartitionInfo::getPartitionId)
-          .forEach(id -> leaders.put(id, clusterRule.getBroker(broker.getNodeId())));
+          .forEach(id -> leaders.put(id, broker.getNodeId()));
     }
 
     return leaders;
   }
 
-  private Optional<ZeebeBrokerContainer> tryGetLeaderForPartition(final int partitionId) {
+  private Optional<Integer> tryGetLeaderForPartition(final int partitionId) {
     final var brokers = getTopology().getBrokers();
 
     return brokers.stream()
         .filter(broker -> isLeaderForPartitionId(broker, partitionId))
         .findFirst()
-        .map(BrokerInfo::getNodeId)
-        .map(clusterRule::getBroker);
+        .map(BrokerInfo::getNodeId);
   }
 
   private boolean isLeaderForPartitionId(final BrokerInfo broker, final int partitionId) {

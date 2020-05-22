@@ -13,11 +13,8 @@ import io.zeebe.containers.ZeebeBrokerContainer;
 import io.zeebe.containers.ZeebeStandaloneGatewayContainer;
 import java.util.Map;
 import org.junit.rules.TestRule;
-import org.testcontainers.containers.Network;
 
 public interface ClusterRule extends TestRule {
-  Network getNetwork();
-
   ZeebeClient getClient();
 
   ZeebeBrokerContainer getBroker(final int nodeId);
