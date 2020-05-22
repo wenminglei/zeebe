@@ -55,17 +55,38 @@ pipeline {
             }
         }
 
-        stage('Build (Java)') {
-            steps {
-                container('maven') {
-                    configFileProvider([configFile(fileId: 'maven-nexus-settings-zeebe', variable: 'MAVEN_SETTINGS_XML')]) {
-                        sh '.ci/scripts/distribution/build-java.sh'
+        stage('Build') {
+            parallel {
+                stage('Java') {
+                    steps {
+                        container('maven') {
+                            configFileProvider([configFile(fileId: 'maven-nexus-settings-zeebe', variable: 'MAVEN_SETTINGS_XML')]) {
+                                sh '.ci/scripts/distribution/build-java.sh'
+                            }
+                        }
+                    }
+                }
+                stage('Go') {
+                    steps {
+                        container('golang') {
+                            sh '.ci/scripts/distribution/build-go.sh'
+                        }
+                    }
+                }
+                stage('Docs') {
+                    steps {
+                        container('maven') {
+                            sh '.ci/scripts/docs/prepare.sh'
+                            sh '.ci/scripts/docs/build.sh'
+                        }
                     }
                 }
             }
         }
 
-        stage('Prepare Tests') {
+
+
+        stage('Build Docker Image') {
             environment {
                 IMAGE = "camunda/zeebe"
                 VERSION = readMavenPom(file: 'parent/pom.xml').getVersion()
@@ -89,10 +110,6 @@ pipeline {
             parallel {
                 stage('Go') {
                     steps {
-                        container('golang') {
-                            sh '.ci/scripts/distribution/build-go.sh'
-                        }
-
                         container('golang') {
                             sh '.ci/scripts/distribution/test-go.sh'
                         }
@@ -170,15 +187,6 @@ pipeline {
                     post {
                         always {
                             junit testResults: "**/*/TEST*${SUREFIRE_REPORT_NAME_SUFFIX}.xml", keepLongStdio: true
-                        }
-                    }
-                }
-
-                stage('Build Docs') {
-                    steps {
-                        container('maven') {
-                            sh '.ci/scripts/docs/prepare.sh'
-                            sh '.ci/scripts/docs/build.sh'
                         }
                     }
                 }
