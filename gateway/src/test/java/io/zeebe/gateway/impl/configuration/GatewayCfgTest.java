@@ -34,6 +34,7 @@ public final class GatewayCfgTest {
         .getCluster()
         .setContactPoint("foobar:1234")
         .setRequestTimeout(Duration.ofHours(123))
+        .setLongPollingEnabled(false)
         .setClusterName("testCluster")
         .setMemberId("testMember")
         .setHost("1.2.3.4")
@@ -122,6 +123,7 @@ public final class GatewayCfgTest {
     setEnv("zeebe.gateway.cluster.contactPoint", "broker:432");
     setEnv("zeebe.gateway.threads.managementThreads", "32");
     setEnv("zeebe.gateway.cluster.requestTimeout", Duration.ofMinutes(43).toString());
+    setEnv("zeebe.gateway.cluster.longPollingEnabled", "false");
     setEnv("zeebe.gateway.cluster.clusterName", "envCluster");
     setEnv("zeebe.gateway.cluster.memberId", "envMember");
     setEnv("zeebe.gateway.cluster.host", "envHost");
@@ -154,6 +156,7 @@ public final class GatewayCfgTest {
         .getCluster()
         .setContactPoint("broker:432")
         .setRequestTimeout(Duration.ofMinutes(43))
+        .setLongPollingEnabled(false)
         .setClusterName("envCluster")
         .setMemberId("envMember")
         .setHost("envHost")

@@ -17,6 +17,8 @@ import io.zeebe.gateway.impl.broker.BrokerClientImpl;
 import io.zeebe.gateway.impl.configuration.GatewayCfg;
 import io.zeebe.gateway.impl.configuration.NetworkCfg;
 import io.zeebe.gateway.impl.configuration.SecurityCfg;
+import io.zeebe.gateway.impl.job.ActivateJobsHandler;
+import io.zeebe.gateway.impl.job.ActivateJobsHandlerImpl;
 import io.zeebe.gateway.impl.job.LongPollingActivateJobsHandler;
 import io.zeebe.util.VersionUtil;
 import io.zeebe.util.sched.ActorScheduler;
@@ -96,10 +98,16 @@ public final class Gateway {
 
     brokerClient = buildBrokerClient();
 
-    final LongPollingActivateJobsHandler longPollingHandler = buildLongPollingHandler(brokerClient);
-    actorScheduler.submitActor(longPollingHandler);
-
-    final EndpointManager endpointManager = new EndpointManager(brokerClient, longPollingHandler);
+    final ActivateJobsHandler activateJobsHandler;
+    if (gatewayCfg.getCluster().isLongPollingEnabled()) {
+      final LongPollingActivateJobsHandler longPollingHandler =
+          buildLongPollingHandler(brokerClient);
+      actorScheduler.submitActor(longPollingHandler);
+      activateJobsHandler = longPollingHandler;
+    } else {
+      activateJobsHandler = new ActivateJobsHandlerImpl(brokerClient);
+    }
+    final EndpointManager endpointManager = new EndpointManager(brokerClient, activateJobsHandler);
 
     final ServerBuilder serverBuilder = serverBuilderFactory.apply(gatewayCfg);
 

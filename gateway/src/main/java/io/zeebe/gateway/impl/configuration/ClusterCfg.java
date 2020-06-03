@@ -13,6 +13,7 @@ import static io.zeebe.gateway.impl.configuration.ConfigurationDefaults.DEFAULT_
 import static io.zeebe.gateway.impl.configuration.ConfigurationDefaults.DEFAULT_CLUSTER_PORT;
 import static io.zeebe.gateway.impl.configuration.ConfigurationDefaults.DEFAULT_CONTACT_POINT_HOST;
 import static io.zeebe.gateway.impl.configuration.ConfigurationDefaults.DEFAULT_CONTACT_POINT_PORT;
+import static io.zeebe.gateway.impl.configuration.ConfigurationDefaults.DEFAULT_LONG_POLLING_ENABLED;
 import static io.zeebe.gateway.impl.configuration.ConfigurationDefaults.DEFAULT_REQUEST_TIMEOUT;
 
 import java.time.Duration;
@@ -22,6 +23,7 @@ public final class ClusterCfg {
   private String contactPoint = DEFAULT_CONTACT_POINT_HOST + ":" + DEFAULT_CONTACT_POINT_PORT;
 
   private Duration requestTimeout = DEFAULT_REQUEST_TIMEOUT;
+  private boolean longPollingEnabled = DEFAULT_LONG_POLLING_ENABLED;
   private String clusterName = DEFAULT_CLUSTER_NAME;
   private String memberId = DEFAULT_CLUSTER_MEMBER_ID;
   private String host = DEFAULT_CLUSTER_HOST;
@@ -72,6 +74,15 @@ public final class ClusterCfg {
     return this;
   }
 
+  public boolean isLongPollingEnabled() {
+    return longPollingEnabled;
+  }
+
+  public ClusterCfg setLongPollingEnabled(final boolean longPollingEnabled) {
+    this.longPollingEnabled = longPollingEnabled;
+    return this;
+  }
+
   public String getClusterName() {
     return clusterName;
   }
@@ -83,7 +94,8 @@ public final class ClusterCfg {
 
   @Override
   public int hashCode() {
-    return Objects.hash(contactPoint, requestTimeout, clusterName, memberId, host, port);
+    return Objects.hash(
+        contactPoint, requestTimeout, longPollingEnabled, clusterName, memberId, host, port);
   }
 
   @Override
@@ -98,6 +110,7 @@ public final class ClusterCfg {
     return port == that.port
         && Objects.equals(contactPoint, that.contactPoint)
         && Objects.equals(requestTimeout, that.requestTimeout)
+        && Objects.equals(longPollingEnabled, that.longPollingEnabled)
         && Objects.equals(clusterName, that.clusterName)
         && Objects.equals(memberId, that.memberId)
         && Objects.equals(host, that.host);
@@ -112,6 +125,8 @@ public final class ClusterCfg {
         + ", requestTimeout='"
         + requestTimeout
         + '\''
+        + ", longPollingEnabled="
+        + longPollingEnabled
         + ", clusterName='"
         + clusterName
         + '\''

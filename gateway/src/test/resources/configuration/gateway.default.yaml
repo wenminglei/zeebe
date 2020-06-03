@@ -60,6 +60,10 @@
 # This setting can also be overridden using the environment variable ZEEBE_GATEWAY_CLUSTER_REQUESTTIMEOUT.
 # requestTimeout: 15s
 
+# Enables long polling for available jobs
+# This setting can also be overridden using the environment variable ZEEBE_GATEWAY_CLUSTER_LONGPOLLINGENABLED.
+# longPollingEnabled: true
+
 # Sets name of the Zeebe cluster to connect to
 # This setting can also be overridden using the environment variable ZEEBE_GATEWAY_CLUSTER_CLUSTERNAME.
 # clusterName: zeebe-cluster

@@ -8,6 +8,7 @@ zeebe:
       contactPoint: foobar:1234
       maxMessageSize: 4G
       requestTimeout: 123h
+      longPollingEnabled: false
       clusterName: testCluster
       memberId: testMember
       host: 1.2.3.4
