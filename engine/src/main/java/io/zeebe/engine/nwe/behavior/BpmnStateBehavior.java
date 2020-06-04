@@ -7,16 +7,23 @@
  */
 package io.zeebe.engine.nwe.behavior;
 
+import static io.zeebe.util.buffer.BufferUtil.wrapString;
+
 import io.zeebe.engine.nwe.BpmnElementContext;
 import io.zeebe.engine.nwe.BpmnProcessingException;
+import io.zeebe.engine.processor.Failure;
 import io.zeebe.engine.state.ZeebeState;
+import io.zeebe.engine.state.deployment.DeployedWorkflow;
+import io.zeebe.engine.state.deployment.WorkflowState;
 import io.zeebe.engine.state.instance.ElementInstance;
 import io.zeebe.engine.state.instance.ElementInstanceState;
 import io.zeebe.engine.state.instance.EventScopeInstanceState;
 import io.zeebe.engine.state.instance.JobState;
 import io.zeebe.engine.state.instance.VariablesState;
+import io.zeebe.protocol.impl.encoding.MsgPackConverter;
 import io.zeebe.protocol.impl.record.value.workflowinstance.WorkflowInstanceRecord;
 import io.zeebe.protocol.record.intent.WorkflowInstanceIntent;
+import io.zeebe.util.Either;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -28,9 +35,10 @@ public final class BpmnStateBehavior {
   private final EventScopeInstanceState eventScopeInstanceState;
   private final VariablesState variablesState;
   private final JobState jobState;
+  private final WorkflowState workflowState;
 
   public BpmnStateBehavior(final ZeebeState zeebeState) {
-    final var workflowState = zeebeState.getWorkflowState();
+    workflowState = zeebeState.getWorkflowState();
     elementInstanceState = workflowState.getElementInstanceState();
     eventScopeInstanceState = workflowState.getEventScopeInstanceState();
     variablesState = elementInstanceState.getVariablesState();
@@ -188,5 +196,30 @@ public final class BpmnStateBehavior {
         parentElementInstance.getKey(),
         parentElementInstance.getValue(),
         parentElementInstance.getState());
+  }
+
+  public Either<Failure, DeployedWorkflow> getWorkflow(
+      final String processId, final BpmnElementContext context) {
+
+    final DeployedWorkflow workflow =
+        workflowState.getLatestWorkflowVersionByProcessId(wrapString(processId));
+    if (workflow == null) {
+      return Either.left(
+          new Failure(
+              String.format(
+                  "Expected workflow with BPMN process id '%s' to be deployed, but not found.",
+                  processId)));
+    }
+
+    return Either.right(workflow);
+  }
+
+  public void copyVariables(
+      final long source, final long target, final DeployedWorkflow targetWorkflow) {
+    final var variables = variablesState.getVariablesAsDocument(source);
+    System.out.println("copying variables: " + MsgPackConverter.convertToJson(variables));
+    System.out.println("source: " + source);
+    System.out.println("target: " + target);
+    variablesState.setVariablesFromDocument(target, targetWorkflow.getKey(), variables);
   }
 }

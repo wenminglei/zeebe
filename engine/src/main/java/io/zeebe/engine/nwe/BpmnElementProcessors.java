@@ -8,6 +8,7 @@
 package io.zeebe.engine.nwe;
 
 import io.zeebe.engine.nwe.behavior.BpmnBehaviors;
+import io.zeebe.engine.nwe.container.CallActivityProcessor;
 import io.zeebe.engine.nwe.container.MultiInstanceBodyProcessor;
 import io.zeebe.engine.nwe.container.ProcessProcessor;
 import io.zeebe.engine.nwe.container.SubProcessProcessor;
@@ -41,6 +42,7 @@ public final class BpmnElementProcessors {
     processors.put(BpmnElementType.SUB_PROCESS, new SubProcessProcessor(bpmnBehaviors));
     processors.put(
         BpmnElementType.MULTI_INSTANCE_BODY, new MultiInstanceBodyProcessor(bpmnBehaviors));
+    processors.put(BpmnElementType.CALL_ACTIVITY, new CallActivityProcessor(bpmnBehaviors));
     // events
     processors.put(BpmnElementType.START_EVENT, new StartEventProcessor(bpmnBehaviors));
     processors.put(

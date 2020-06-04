@@ -18,7 +18,9 @@ import io.zeebe.engine.processor.workflow.WorkflowInstanceLifecycle;
 import io.zeebe.engine.processor.workflow.deployment.model.element.ExecutableFlowElement;
 import io.zeebe.engine.processor.workflow.deployment.model.element.ExecutableFlowNode;
 import io.zeebe.engine.processor.workflow.deployment.model.element.ExecutableSequenceFlow;
+import io.zeebe.engine.state.deployment.DeployedWorkflow;
 import io.zeebe.engine.state.instance.ElementInstance;
+import io.zeebe.protocol.impl.record.value.workflowinstance.WorkflowInstanceRecord;
 import io.zeebe.protocol.record.intent.WorkflowInstanceIntent;
 import io.zeebe.protocol.record.value.BpmnElementType;
 import java.util.function.Function;
@@ -33,6 +35,7 @@ public final class BpmnStateTransitionBehavior {
 
   private final WorkflowInstanceStateTransitionGuard stateTransitionGuard;
   private final WorkflowEngineMetrics metrics;
+  private final WorkflowInstanceRecord childInstanceRecord = new WorkflowInstanceRecord();
 
   public BpmnStateTransitionBehavior(
       final TypedStreamWriter streamWriter,
@@ -235,4 +238,32 @@ public final class BpmnStateTransitionBehavior {
 
     flowScopeProcessor.onChildTerminated(flowScope, flowScopeContext, childContext);
   }
+
+  public long createChildProcessInstance(
+      final DeployedWorkflow workflow, final BpmnElementContext context) {
+
+    final var workflowInstanceKey = keyGenerator.nextKey();
+
+    childInstanceRecord.reset();
+    childInstanceRecord
+        .setBpmnProcessId(workflow.getBpmnProcessId())
+        .setVersion(workflow.getVersion())
+        .setWorkflowKey(workflow.getKey())
+        .setWorkflowInstanceKey(workflowInstanceKey)
+        .setParentWorkflowInstanceKey(context.getWorkflowInstanceKey())
+        .setParentElementInstanceKey(context.getElementInstanceKey())
+        .setElementId(workflow.getWorkflow().getId())
+        .setBpmnElementType(workflow.getWorkflow().getElementType());
+
+    streamWriter.appendFollowUpEvent(
+        workflowInstanceKey, WorkflowInstanceIntent.ELEMENT_ACTIVATING, childInstanceRecord);
+
+    stateBehavior.createChildElementInstance(context, workflowInstanceKey, childInstanceRecord);
+
+    return workflowInstanceKey;
+  }
+
+  /**
+   * {"bpmnProcessId":"wf-child","version":1,"workflowKey":2251799813685250,"workflowInstanceKey":2251799813685259,"elementId":"wf-child","flowScopeKey":-1,"bpmnElementType":"PROCESS","parentWorkflowInstanceKey":-1,"parentElementInstanceKey":-1}
+   */
 }
