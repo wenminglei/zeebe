@@ -99,7 +99,7 @@ public final class Gateway {
     brokerClient = buildBrokerClient();
 
     final ActivateJobsHandler activateJobsHandler;
-    if (gatewayCfg.getCluster().isLongPollingEnabled()) {
+    if (gatewayCfg.getLongPolling().isEnabled()) {
       final LongPollingActivateJobsHandler longPollingHandler =
           buildLongPollingHandler(brokerClient);
       actorScheduler.submitActor(longPollingHandler);

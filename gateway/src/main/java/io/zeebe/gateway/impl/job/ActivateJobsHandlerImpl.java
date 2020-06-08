@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
+// todo(@korthout): improve name
 public final class ActivateJobsHandlerImpl implements ActivateJobsHandler {
 
   private final Map<String, Integer> jobTypeToNextPartitionId = new HashMap<>();

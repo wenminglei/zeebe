@@ -34,7 +34,6 @@ public final class GatewayCfgTest {
         .getCluster()
         .setContactPoint("foobar:1234")
         .setRequestTimeout(Duration.ofHours(123))
-        .setLongPollingEnabled(false)
         .setClusterName("testCluster")
         .setMemberId("testMember")
         .setHost("1.2.3.4")
@@ -46,6 +45,7 @@ public final class GatewayCfgTest {
         .setPrivateKeyPath("privateKeyPath");
     CUSTOM_CFG.getMonitoring().setEnabled(true).setHost("monitoringHost").setPort(1234);
     CUSTOM_CFG.getThreads().setManagementThreads(100);
+    CUSTOM_CFG.getLongPolling().setEnabled(false);
   }
 
   private final Map<String, String> environment = new HashMap<>();
@@ -156,7 +156,6 @@ public final class GatewayCfgTest {
         .getCluster()
         .setContactPoint("broker:432")
         .setRequestTimeout(Duration.ofMinutes(43))
-        .setLongPollingEnabled(false)
         .setClusterName("envCluster")
         .setMemberId("envMember")
         .setHost("envHost")
@@ -170,6 +169,7 @@ public final class GatewayCfgTest {
             getClass().getClassLoader().getResource("security/test-server.key.pem").getPath())
         .setCertificateChainPath(
             getClass().getClassLoader().getResource("security/test-chain.cert.pem").getPath());
+    expected.getLongPolling().setEnabled(false);
 
     // when
     final GatewayCfg gatewayCfg = readCustomConfig();
