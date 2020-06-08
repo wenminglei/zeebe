@@ -10,12 +10,16 @@ package io.zeebe.gateway.api.job;
 import static io.zeebe.test.util.TestUtil.waitUntil;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import io.zeebe.gateway.EndpointManager;
 import io.zeebe.gateway.api.util.StubbedBrokerClient;
 import io.zeebe.gateway.api.util.StubbedBrokerClient.RequestHandler;
 import io.zeebe.gateway.impl.broker.request.BrokerActivateJobsRequest;
@@ -40,6 +44,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 public final class LongPollingActivateJobsTest {
 
@@ -401,10 +406,8 @@ public final class LongPollingActivateJobsTest {
 
   @Test
   public void
-      shouldRepeatActivateJobsRequestAgainstBrokersIfBrokersReturnedResourceExhaustionResponseTheFirstTime() {
+      shouldReturnResourceExhaustedErrorIfNoJobsAvailableAndSomeBrokersReturnResourceExhaustionResponse() {
     // given
-
-    // a request with timeout
     final LongPollingActivateJobsRequest request =
         new LongPollingActivateJobsRequest(
             ActivateJobsRequest.newBuilder()
@@ -414,15 +417,56 @@ public final class LongPollingActivateJobsTest {
                 .build(),
             spy(StreamObserver.class));
 
-    /* and a request handler that simulates the following:
-        - on the first round all brokers return resource exhausted errors
-        - on the second round they return jobs
-    */
+    brokerClient.registerHandler(
+        BrokerActivateJobsRequest.class,
+        new RequestHandler<BrokerActivateJobsRequest, BrokerResponse<?>>() {
+          private final ActivateJobsStub noJobsAvailableStub = new ActivateJobsStub();
+
+          @Override
+          public BrokerResponse<?> handle(final BrokerActivateJobsRequest request)
+              throws Exception {
+            final int partitionId = request.getPartitionId();
+
+            if (partitionId == 4) {
+              return new BrokerErrorResponse(
+                  new BrokerError(ErrorCode.RESOURCE_EXHAUSTED, "backpressure"));
+            } else {
+              return noJobsAvailableStub.handle(request);
+            }
+          }
+        });
+    // when
+    handler.activateJobs(request);
+
+    // then
+    final ArgumentCaptor<Throwable> throwableCaptor = ArgumentCaptor.forClass(Throwable.class);
+    verify(request.getResponseObserver(), timeout(1000).times(1))
+        .onError(throwableCaptor.capture());
+    verify(request.getResponseObserver(), never()).onNext(Mockito.any());
+    verify(request.getResponseObserver(), never()).onCompleted();
+
+    final StatusRuntimeException statusRuntimeException =
+        EndpointManager.convertThrowable(throwableCaptor.getValue());
+
+    assertThat(statusRuntimeException.getStatus().getCode()).isEqualTo(Code.RESOURCE_EXHAUSTED);
+  }
+
+  @Test
+  public void shouldReturnJobsIfSomeBrokersHaveJobsWhileOthersReturnResourceExhaustionResponse() {
+    // given
+    final LongPollingActivateJobsRequest request =
+        new LongPollingActivateJobsRequest(
+            ActivateJobsRequest.newBuilder()
+                .setType(TYPE)
+                .setMaxJobsToActivate(15)
+                .setRequestTimeout(500)
+                .build(),
+            spy(StreamObserver.class));
+
     brokerClient.registerHandler(
         BrokerActivateJobsRequest.class,
         new RequestHandler<BrokerActivateJobsRequest, BrokerResponse<?>>() {
           private final ActivateJobsStub jobsAvailableStub = new ActivateJobsStub();
-          private final Map<Integer, Integer> requestsPerPartitionCount = new HashMap<>();
 
           {
             jobsAvailableStub.addAvailableJobs(TYPE, 10);
@@ -433,12 +477,7 @@ public final class LongPollingActivateJobsTest {
               throws Exception {
             final int partitionId = request.getPartitionId();
 
-            final int requestsPerPartition =
-                requestsPerPartitionCount.computeIfAbsent(partitionId, key -> 0);
-
-            if (requestsPerPartition == 0) {
-              requestsPerPartitionCount.put(partitionId, requestsPerPartition + 1);
-
+            if (partitionId == 4) {
               return new BrokerErrorResponse(
                   new BrokerError(ErrorCode.RESOURCE_EXHAUSTED, "backpressure"));
             } else {
@@ -448,6 +487,7 @@ public final class LongPollingActivateJobsTest {
         });
     // when
     handler.activateJobs(request);
+
     waitUntil(() -> request.isCompleted());
 
     // then

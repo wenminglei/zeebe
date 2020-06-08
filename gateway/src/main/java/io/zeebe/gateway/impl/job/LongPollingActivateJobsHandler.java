@@ -11,11 +11,14 @@ import static io.zeebe.util.sched.clock.ActorClock.currentTimeMillis;
 
 import io.grpc.stub.StreamObserver;
 import io.zeebe.gateway.Loggers;
+import io.zeebe.gateway.cmd.BrokerErrorException;
 import io.zeebe.gateway.impl.broker.BrokerClient;
 import io.zeebe.gateway.impl.broker.cluster.BrokerClusterState;
+import io.zeebe.gateway.impl.broker.response.BrokerError;
 import io.zeebe.gateway.metrics.LongPollingMetrics;
 import io.zeebe.gateway.protocol.GatewayOuterClass.ActivateJobsRequest;
 import io.zeebe.gateway.protocol.GatewayOuterClass.ActivateJobsResponse;
+import io.zeebe.protocol.record.ErrorCode;
 import io.zeebe.util.sched.Actor;
 import io.zeebe.util.sched.ScheduledTimer;
 import io.zeebe.util.sched.clock.ActorClock;
@@ -112,7 +115,8 @@ public final class LongPollingActivateJobsHandler extends Actor {
           request.getMaxJobsToActivate(),
           request.getType(),
           response -> onResponse(request, response),
-          remainingAmount -> onCompleted(state, request, remainingAmount));
+          (remainingAmount, containedResourceExhaustedResponse) ->
+              onCompleted(state, request, remainingAmount, containedResourceExhaustedResponse));
     }
   }
 
@@ -124,14 +128,27 @@ public final class LongPollingActivateJobsHandler extends Actor {
   private void onCompleted(
       final InFlightLongPollingActivateJobsRequestsState state,
       final LongPollingActivateJobsRequest request,
-      final Integer remainingAmount) {
+      final Integer remainingAmount,
+      final Boolean containedResourceExhaustedResponse) {
     state.removeActiveRequest();
     if (remainingAmount == request.getMaxJobsToActivate()) {
-      actor.submit(
-          () -> {
-            state.incrementFailedAttempts(currentTimeMillis());
-            activateJobs(request);
-          });
+      if (containedResourceExhaustedResponse) {
+        actor.submit(
+            () ->
+                request
+                    .getResponseObserver()
+                    .onError(
+                        new BrokerErrorException(
+                            new BrokerError(
+                                ErrorCode.RESOURCE_EXHAUSTED,
+                                "Some brokers returned resource exhausted"))));
+      } else {
+        actor.submit(
+            () -> {
+              state.incrementFailedAttempts(currentTimeMillis());
+              activateJobs(request);
+            });
+      }
     } else {
       actor.submit(request::complete);
       actor.submit(() -> handlePendingRequests(request.getType()));
