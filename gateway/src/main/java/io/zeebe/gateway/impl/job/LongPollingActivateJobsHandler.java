@@ -104,7 +104,7 @@ public final class LongPollingActivateJobsHandler extends Actor {
 
   private void onNotification(final String jobType) {
     LOG.trace("Received jobs available notification for type {}.", jobType);
-    actor.call(() -> jobsAvailable(jobType));
+    actor.submit(() -> jobsAvailable(jobType));
   }
 
   private void onCompleted(

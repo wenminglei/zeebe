@@ -17,19 +17,26 @@ import static org.mockito.Mockito.verify;
 
 import io.grpc.stub.StreamObserver;
 import io.zeebe.gateway.api.util.StubbedBrokerClient;
+import io.zeebe.gateway.api.util.StubbedBrokerClient.RequestHandler;
+import io.zeebe.gateway.impl.broker.request.BrokerActivateJobsRequest;
+import io.zeebe.gateway.impl.broker.response.BrokerResponse;
 import io.zeebe.gateway.impl.job.LongPollingActivateJobsHandler;
 import io.zeebe.gateway.impl.job.LongPollingActivateJobsRequest;
 import io.zeebe.gateway.protocol.GatewayOuterClass.ActivateJobsRequest;
 import io.zeebe.gateway.protocol.GatewayOuterClass.ActivateJobsResponse;
+import io.zeebe.protocol.impl.record.value.job.JobBatchRecord;
 import io.zeebe.util.sched.clock.ControlledActorClock;
 import io.zeebe.util.sched.testing.ActorSchedulerRule;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 
 public final class LongPollingActivateJobsTest {
 
@@ -321,6 +328,72 @@ public final class LongPollingActivateJobsTest {
     // then
     assertThat(request.hasScheduledTimer()).isFalse();
     assertThat(request.isTimedOut()).isFalse();
+  }
+
+  @Test
+  public void
+      shouldRepeatActivateJobsRequestAgainstBrokersIfNewJobsArriveWhileIteratingThroughBrokersTheFirstTime() {
+    // given
+
+    // a request with timeout
+    final LongPollingActivateJobsRequest request =
+        new LongPollingActivateJobsRequest(
+            ActivateJobsRequest.newBuilder()
+                .setType(TYPE)
+                .setMaxJobsToActivate(15)
+                .setRequestTimeout(500)
+                .build(),
+            spy(StreamObserver.class));
+
+    /* and a request handler that simulates the following:
+        - on the first round no broker has any jobs
+        - about midway through iterating the brokers one of the brokers that has already been visited reports new jobs being available
+        - these jobs are available, when the brokers are asked a second time
+    */
+    brokerClient.registerHandler(
+        BrokerActivateJobsRequest.class,
+        new RequestHandler<BrokerActivateJobsRequest, BrokerResponse<JobBatchRecord>>() {
+          private final ActivateJobsStub noJobsAvailableStub = new ActivateJobsStub();
+          private final ActivateJobsStub jobsAvailableStub = new ActivateJobsStub();
+          private final Map<Integer, Integer> requestsPerPartitionCount = new HashMap<>();
+
+          {
+            jobsAvailableStub.addAvailableJobs(TYPE, 10);
+          }
+
+          @Override
+          public BrokerResponse<JobBatchRecord> handle(final BrokerActivateJobsRequest request)
+              throws Exception {
+            final int partitionId = request.getPartitionId();
+
+            final int requestsPerPartition =
+                requestsPerPartitionCount.computeIfAbsent(partitionId, key -> 0);
+
+            if (requestsPerPartition == 0) {
+              requestsPerPartitionCount.put(partitionId, requestsPerPartition + 1);
+
+              if (partitionId == 3) {
+                brokerClient.notifyJobsAvailable(TYPE);
+              }
+              return noJobsAvailableStub.handle(request);
+            } else {
+              return jobsAvailableStub.handle(request);
+            }
+          }
+        });
+    // when
+    handler.activateJobs(request);
+    waitUntil(() -> request.isCompleted());
+
+    // then
+    assertThat(request.isTimedOut()).isFalse();
+    final ArgumentCaptor<ActivateJobsResponse> responseArgumentCaptor =
+        ArgumentCaptor.forClass(ActivateJobsResponse.class);
+    verify(request.getResponseObserver()).onNext(responseArgumentCaptor.capture());
+
+    final ActivateJobsResponse response = responseArgumentCaptor.getValue();
+
+    assertThat(response.getJobsList()).hasSize(10);
   }
 
   private List<LongPollingActivateJobsRequest> activateJobsAndWaitUntilBlocked(final int amount) {
