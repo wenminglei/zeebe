@@ -23,7 +23,6 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Queue;
 import org.slf4j.Logger;
 
 public final class LongPollingActivateJobsHandler extends Actor {
@@ -35,10 +34,11 @@ public final class LongPollingActivateJobsHandler extends Actor {
   private final BrokerClient brokerClient;
 
   // jobType -> state
-  private final Map<String, JobTypeAvailabilityState> jobTypeState = new HashMap<>();
+  private final Map<String, InFlightLongPollingActivateJobsRequestsState> jobTypeState =
+      new HashMap<>();
   private final Duration longPollingTimeout;
   private final long probeTimeoutMillis;
-  private final int emptyResponseThreshold;
+  private final int failedAttemptThreshold;
 
   private final LongPollingMetrics metrics;
 
@@ -46,12 +46,12 @@ public final class LongPollingActivateJobsHandler extends Actor {
       final BrokerClient brokerClient,
       final long longPollingTimeout,
       final long probeTimeoutMillis,
-      final int emptyResponseThreshold) {
+      final int failedAttemptThreshold) {
     this.brokerClient = brokerClient;
     this.activateJobsHandler = new ActivateJobsHandler(brokerClient);
     this.longPollingTimeout = Duration.ofMillis(longPollingTimeout);
     this.probeTimeoutMillis = probeTimeoutMillis;
-    this.emptyResponseThreshold = emptyResponseThreshold;
+    this.failedAttemptThreshold = failedAttemptThreshold;
     metrics = new LongPollingMetrics();
   }
 
@@ -77,20 +77,34 @@ public final class LongPollingActivateJobsHandler extends Actor {
   public void activateJobs(final LongPollingActivateJobsRequest request) {
     actor.run(
         () -> {
-          final JobTypeAvailabilityState state = jobTypeState.get(request.getType());
-          final boolean isJobAvailable =
-              state == null || (state.getEmptyResponses() < emptyResponseThreshold);
-          if (isJobAvailable) {
-            activateJobsUnchecked(request);
+          final InFlightLongPollingActivateJobsRequestsState state =
+              getJobTypeState(request.getType());
+
+          if (state.getActiveRequest() == null
+              && (state.getFailedAttempts() < failedAttemptThreshold)) {
+            activateJobsUnchecked(state, request);
           } else {
-            block(state, request);
+            completeOrEnqueueRequest(state, request);
           }
         });
   }
 
-  private void activateJobsUnchecked(final LongPollingActivateJobsRequest request) {
+  private InFlightLongPollingActivateJobsRequestsState getJobTypeState(String jobType) {
+    synchronized (jobTypeState) {
+      return jobTypeState.computeIfAbsent(
+          jobType, type -> new InFlightLongPollingActivateJobsRequestsState(type, metrics));
+    }
+  }
+
+  private void activateJobsUnchecked(
+      final InFlightLongPollingActivateJobsRequestsState state,
+      final LongPollingActivateJobsRequest request) {
+
     final BrokerClusterState topology = brokerClient.getTopologyManager().getTopology();
     if (topology != null) {
+
+      state.setActiveRequest(request);
+
       final int partitionsCount = topology.getPartitionsCount();
       activateJobsHandler.activateJobs(
           partitionsCount,
@@ -98,66 +112,63 @@ public final class LongPollingActivateJobsHandler extends Actor {
           request.getMaxJobsToActivate(),
           request.getType(),
           response -> onResponse(request, response),
-          remainingAmount -> onCompleted(request, remainingAmount));
+          remainingAmount -> onCompleted(state, request, remainingAmount));
     }
   }
 
   private void onNotification(final String jobType) {
     LOG.trace("Received jobs available notification for type {}.", jobType);
-    actor.submit(() -> jobsAvailable(jobType));
+    actor.run(() -> handlePendingRequests(jobType));
   }
 
   private void onCompleted(
-      final LongPollingActivateJobsRequest request, final Integer remainingAmount) {
+      final InFlightLongPollingActivateJobsRequestsState state,
+      final LongPollingActivateJobsRequest request,
+      final Integer remainingAmount) {
+    state.removeActiveRequest();
     if (remainingAmount == request.getMaxJobsToActivate()) {
-      actor.submit(() -> jobsNotAvailable(request));
+      actor.submit(
+          () -> {
+            state.incrementFailedAttempts(currentTimeMillis());
+            activateJobs(request);
+          });
     } else {
       actor.submit(request::complete);
+      actor.submit(() -> handlePendingRequests(request.getType()));
     }
   }
 
   private void onResponse(
       final LongPollingActivateJobsRequest request,
       final ActivateJobsResponse activateJobsResponse) {
-    actor.submit(
-        () -> {
-          request.onResponse(activateJobsResponse);
-          jobsAvailable(request.getType());
-        });
+    actor.submit(() -> request.onResponse(activateJobsResponse));
   }
 
-  private void jobsNotAvailable(final LongPollingActivateJobsRequest request) {
-    final JobTypeAvailabilityState state =
-        jobTypeState.computeIfAbsent(
-            request.getType(), type -> new JobTypeAvailabilityState(type, metrics));
-    state.incrementEmptyResponses(currentTimeMillis());
-    block(state, request);
-  }
+  private void handlePendingRequests(final String jobType) {
+    final InFlightLongPollingActivateJobsRequestsState state = getJobTypeState(jobType);
 
-  private void jobsAvailable(final String jobType) {
-    final JobTypeAvailabilityState removedState = jobTypeState.remove(jobType);
-    if (removedState != null) {
-      unblockRequests(removedState);
+    state.resetFailedAttempts(0);
+
+    if (state.getActiveRequest() == null) {
+
+      state.removeCanceledRequests();
+
+      final LongPollingActivateJobsRequest nextPendingRequest = state.getNextPendingRequest();
+
+      if (nextPendingRequest != null) {
+        LOG.trace("Unblocking ActivateJobsRequest {}", nextPendingRequest.getRequest());
+        activateJobs(nextPendingRequest);
+      } else {
+        synchronized (jobTypeState) {
+          jobTypeState.remove(jobType);
+        }
+      }
     }
   }
 
-  private void unblockRequests(final JobTypeAvailabilityState state) {
-    final Queue<LongPollingActivateJobsRequest> requests = state.getBlockedRequests();
-    if (requests == null) {
-      return;
-    }
-    requests.stream()
-        .filter((r) -> !r.isCanceled())
-        .forEach(
-            request -> {
-              LOG.trace("Unblocking ActivateJobsRequest {}", request.getRequest());
-              activateJobs(request);
-            });
-    state.clearBlockedRequests();
-  }
-
-  private void block(
-      final JobTypeAvailabilityState state, final LongPollingActivateJobsRequest request) {
+  private void completeOrEnqueueRequest(
+      final InFlightLongPollingActivateJobsRequestsState state,
+      final LongPollingActivateJobsRequest request) {
     if (request.isLongPollingDisabled()) {
       request.complete();
       return;
@@ -170,7 +181,7 @@ public final class LongPollingActivateJobsHandler extends Actor {
           request.getMaxJobsToActivate(),
           request.getType(),
           request.getLongPollingTimeout(longPollingTimeout));
-      state.blockRequest(request);
+      state.enqueueRequest(request);
       if (!request.hasScheduledTimer()) {
         addTimeOut(state, request);
       }
@@ -178,7 +189,8 @@ public final class LongPollingActivateJobsHandler extends Actor {
   }
 
   private void addTimeOut(
-      final JobTypeAvailabilityState state, final LongPollingActivateJobsRequest request) {
+      final InFlightLongPollingActivateJobsRequestsState state,
+      final LongPollingActivateJobsRequest request) {
     ActorClock.currentTimeMillis();
     final Duration requestTimeout = request.getLongPollingTimeout(longPollingTimeout);
     final ScheduledTimer timeout =
@@ -190,7 +202,7 @@ public final class LongPollingActivateJobsHandler extends Actor {
                   request.getRequest(),
                   request.getType(),
                   requestTimeout);
-              state.removeBlockedRequest(request);
+              state.removeRequest(request);
               request.timeout();
             });
     request.setScheduledTimer(timeout);
@@ -200,16 +212,17 @@ public final class LongPollingActivateJobsHandler extends Actor {
     final long now = currentTimeMillis();
     jobTypeState.forEach(
         (type, state) -> {
-          if (state.getLastUpdatedTime() < (now - probeTimeoutMillis)) {
-            state.removeCanceledRequests();
+          state.removeCanceledRequests();
 
-            final LongPollingActivateJobsRequest probeRequest = state.pollBlockedRequests();
+          if (state.getActiveRequest() == null
+              && state.getLastUpdatedTime() < (now - probeTimeoutMillis)) {
+            final LongPollingActivateJobsRequest probeRequest = state.getNextPendingRequest();
             if (probeRequest != null) {
-              activateJobsUnchecked(probeRequest);
+              activateJobsUnchecked(state, probeRequest);
             } else {
               // there are no blocked requests, so use next request as probe
-              if (state.getEmptyResponses() >= emptyResponseThreshold) {
-                state.resetEmptyResponses(emptyResponseThreshold - 1);
+              if (state.getFailedAttempts() >= failedAttemptThreshold) {
+                state.resetFailedAttempts(failedAttemptThreshold - 1);
               }
             }
           }
