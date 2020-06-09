@@ -30,12 +30,14 @@ import io.zeebe.broker.system.SystemContext;
 import io.zeebe.broker.system.configuration.BackpressureCfg;
 import io.zeebe.broker.system.configuration.BrokerCfg;
 import io.zeebe.broker.system.configuration.ClusterCfg;
+import io.zeebe.broker.system.configuration.DataCfg;
 import io.zeebe.broker.system.configuration.NetworkCfg;
 import io.zeebe.broker.system.configuration.SocketBindingCfg;
 import io.zeebe.broker.system.management.LeaderManagementRequestHandler;
 import io.zeebe.broker.system.management.deployment.PushDeploymentRequestHandler;
 import io.zeebe.broker.system.monitoring.BrokerHealthCheckService;
 import io.zeebe.broker.system.monitoring.BrokerHttpServer;
+import io.zeebe.broker.system.monitoring.DiskSpaceUsageMonitor;
 import io.zeebe.broker.system.partitions.TypedRecordProcessorsFactory;
 import io.zeebe.broker.system.partitions.ZeebePartition;
 import io.zeebe.broker.system.partitions.impl.AtomixPartitionMessagingService;
@@ -95,6 +97,7 @@ public final class Broker implements AutoCloseable {
   private ServerTransport serverTransport;
   private BrokerHealthCheckService healthCheckService;
   private Map<Integer, ZeebeIndexAdapter> partitionIndexes;
+  private DiskSpaceUsageMonitor diskSpaceUsageMonitor;
 
   public Broker(final SystemContext systemContext) {
     this.brokerContext = systemContext;
@@ -178,7 +181,9 @@ public final class Broker implements AutoCloseable {
     }
     startContext.addStep("cluster services", () -> atomix.start().join());
     startContext.addStep("topology manager", () -> topologyManagerStep(clusterCfg, localBroker));
-    startContext.addStep("metric's server", () -> monitoringServerStep(networkCfg, localBroker));
+    startContext.addStep(
+        "metric's server",
+        () -> monitoringServerStep(networkCfg, brokerCfg.getData(), localBroker));
     startContext.addStep(
         "leader management request handler", () -> managementRequestStep(localBroker));
     startContext.addStep(
@@ -294,10 +299,13 @@ public final class Broker implements AutoCloseable {
   }
 
   private AutoCloseable monitoringServerStep(
-      final NetworkCfg networkCfg, final BrokerInfo localBroker) {
+      final NetworkCfg networkCfg, final DataCfg data, final BrokerInfo localBroker) {
     healthCheckService = new BrokerHealthCheckService(localBroker, atomix);
     partitionListeners.add(healthCheckService);
     scheduleActor(healthCheckService);
+
+    diskSpaceUsageMonitor = new DiskSpaceUsageMonitor(data);
+    scheduleActor(diskSpaceUsageMonitor);
 
     final SocketBindingCfg monitoringApi = networkCfg.getMonitoringApi();
     final BrokerHttpServer httpServer =
@@ -306,6 +314,7 @@ public final class Broker implements AutoCloseable {
     return () -> {
       httpServer.close();
       healthCheckService.close();
+      diskSpaceUsageMonitor.close();
     };
   }
 
@@ -356,6 +365,7 @@ public final class Broker implements AutoCloseable {
             scheduleActor(zeebePartition);
             healthCheckService.registerMonitoredPartition(
                 owningPartition.id().id(), zeebePartition);
+            diskSpaceUsageMonitor.addDiskUsageListener(zeebePartition);
             return zeebePartition;
           });
     }

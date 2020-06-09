@@ -58,6 +58,7 @@ public class StreamProcessor extends Actor implements HealthMonitorable {
   private final String actorName;
   private FailureListener failureListener;
   private volatile long lastTickTime;
+  private boolean shouldProcess;
 
   protected StreamProcessor(final StreamProcessorBuilder processorBuilder) {
     this.actorScheduler = processorBuilder.getActorScheduler();
@@ -105,7 +106,8 @@ public class StreamProcessor extends Actor implements HealthMonitorable {
     }
 
     try {
-      processingStateMachine = new ProcessingStateMachine(processingContext, this::isOpened);
+      processingStateMachine =
+          new ProcessingStateMachine(processingContext, this::shouldProcessNext);
       openFuture.complete(null);
 
       final ReProcessingStateMachine reProcessingStateMachine =
@@ -174,6 +176,10 @@ public class StreamProcessor extends Actor implements HealthMonitorable {
     isOpened.set(false);
     lifecycleAwareListeners.forEach(StreamProcessorLifecycleAware::onFailed);
     tearDown();
+  }
+
+  private boolean shouldProcessNext() {
+    return isOpened() && shouldProcess;
   }
 
   private void tearDown() {
@@ -327,6 +333,14 @@ public class StreamProcessor extends Actor implements HealthMonitorable {
   @Override
   public void addFailureListener(final FailureListener failureListener) {
     actor.run(() -> this.failureListener = failureListener);
+  }
+
+  public void pauseProcessing() {
+    actor.call(() -> this.shouldProcess = false);
+  }
+
+  public void resumeProcessing() {
+    actor.call(() -> this.shouldProcess = true);
   }
 
   private enum Phase {

@@ -31,6 +31,7 @@ import io.zeebe.broker.logstreams.LogDeletionService;
 import io.zeebe.broker.logstreams.state.StatePositionSupplier;
 import io.zeebe.broker.system.configuration.BrokerCfg;
 import io.zeebe.broker.system.configuration.DataCfg;
+import io.zeebe.broker.system.monitoring.DiskSpaceUsageListener;
 import io.zeebe.broker.system.monitoring.HealthMetrics;
 import io.zeebe.broker.transport.commandapi.CommandApiService;
 import io.zeebe.db.ZeebeDb;
@@ -70,7 +71,11 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 
 public final class ZeebePartition extends Actor
-    implements RaftCommitListener, RaftRoleChangeListener, HealthMonitorable, FailureListener {
+    implements RaftCommitListener,
+        RaftRoleChangeListener,
+        HealthMonitorable,
+        FailureListener,
+        DiskSpaceUsageListener {
 
   private static final Logger LOG = Loggers.SYSTEM_LOGGER;
   private static final int EXPORTER_PROCESSOR_ID = 1003;
@@ -106,6 +111,7 @@ public final class ZeebePartition extends Actor
   private long deferredCommitPosition;
   private final RaftPartitionHealth raftPartitionHealth;
   private long term;
+  private StreamProcessor streamProcessor;
 
   public ZeebePartition(
       final BrokerInfo localBroker,
@@ -450,7 +456,7 @@ public final class ZeebePartition extends Actor
   }
 
   private void installProcessingPartition(final CompletableActorFuture<Void> installFuture) {
-    final StreamProcessor streamProcessor = createStreamProcessor(zeebeDb);
+    streamProcessor = createStreamProcessor(zeebeDb);
     closeables.add(streamProcessor);
     streamProcessor
         .openAsync()
@@ -788,5 +794,23 @@ public final class ZeebePartition extends Actor
   @Override
   public void addFailureListener(final FailureListener failureListener) {
     actor.run(() -> this.failureListener = failureListener);
+  }
+
+  @Override
+  public void onDiskSpaceUsageIncreasedAboveThreshold() {
+    actor.call(
+        () -> {
+          LOG.warn("Disk space usage is above threshold. Pausing stream processor.");
+          streamProcessor.pauseProcessing();
+        });
+  }
+
+  @Override
+  public void onDiskSpaceUsageReducedBelowThreshold() {
+    actor.call(
+        () -> {
+          LOG.info("Disk space usage is below threshold. Resuming stream processor.");
+          streamProcessor.resumeProcessing();
+        });
   }
 }
