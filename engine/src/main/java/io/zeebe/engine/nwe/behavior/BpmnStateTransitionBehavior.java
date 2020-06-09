@@ -258,12 +258,8 @@ public final class BpmnStateTransitionBehavior {
     streamWriter.appendFollowUpEvent(
         workflowInstanceKey, WorkflowInstanceIntent.ELEMENT_ACTIVATING, childInstanceRecord);
 
-    stateBehavior.createChildElementInstance(context, workflowInstanceKey, childInstanceRecord);
+    stateBehavior.createElementInstance(workflowInstanceKey, childInstanceRecord);
 
     return workflowInstanceKey;
   }
-
-  /**
-   * {"bpmnProcessId":"wf-child","version":1,"workflowKey":2251799813685250,"workflowInstanceKey":2251799813685259,"elementId":"wf-child","flowScopeKey":-1,"bpmnElementType":"PROCESS","parentWorkflowInstanceKey":-1,"parentElementInstanceKey":-1}
-   */
 }

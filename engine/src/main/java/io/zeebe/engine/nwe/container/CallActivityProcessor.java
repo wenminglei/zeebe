@@ -1,3 +1,10 @@
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH under
+ * one or more contributor license agreements. See the NOTICE file distributed
+ * with this work for additional information regarding copyright ownership.
+ * Licensed under the Zeebe Community License 1.0. You may not use this file
+ * except in compliance with the Zeebe Community License 1.0.
+ */
 package io.zeebe.engine.nwe.container;
 
 import io.zeebe.engine.nwe.BpmnElementContainerProcessor;
@@ -46,7 +53,9 @@ public class CallActivityProcessor
     variableMappingBehavior
         .applyInputMappings(context, element)
         .flatMap(ok -> eventSubscriptionBehavior.subscribeToEvents(element, context))
-        .flatMap(ok -> getWorkflow(context, element))
+        .flatMap(ok -> evaluateProcessId(context, element))
+        .flatMap(this::getWorkflowForProcessId)
+        .flatMap(this::checkWorkflowHasNoneStartEvent)
         .ifRightOrLeft(
             workflow -> {
               final var childWorkflowInstanceKey =
@@ -113,17 +122,28 @@ public class CallActivityProcessor
     throw new BpmnProcessingException(flowScopeContext, "Not yet implemented");
   }
 
-  private Either<Failure, DeployedWorkflow> getWorkflow(
+  private Either<Failure, String> evaluateProcessId(
       final BpmnElementContext context, final ExecutableCallActivity element) {
     final var processIdExpression = element.getCalledElementProcessId();
     final var scopeKey = context.getElementInstanceKey();
-    return expressionProcessor
-        .evaluateStringExpression(processIdExpression, scopeKey)
-        .flatMap(processId -> stateBehavior.getWorkflow(processId, context))
-        .flatMap(CallActivityProcessor::checkWorkflowHasNoneStartEvent);
+    return expressionProcessor.evaluateStringExpression(processIdExpression, scopeKey);
   }
 
-  private static Either<Failure, DeployedWorkflow> checkWorkflowHasNoneStartEvent(
+  @SuppressWarnings("OptionalIsPresent") // the proposed refactoring is less readable
+  private Either<Failure, DeployedWorkflow> getWorkflowForProcessId(final String processId) {
+    final var workflow = stateBehavior.getWorkflow(processId);
+    if (workflow.isPresent()) {
+      return Either.right(workflow.get());
+    }
+    return Either.left(
+        new Failure(
+            String.format(
+                "Expected workflow with BPMN process id '%s' to be deployed, but not found.",
+                processId),
+            ErrorType.CALLED_ELEMENT_ERROR));
+  }
+
+  private Either<Failure, DeployedWorkflow> checkWorkflowHasNoneStartEvent(
       final DeployedWorkflow workflow) {
     if (workflow.getWorkflow().getNoneStartEvent() == null) {
       return Either.left(
