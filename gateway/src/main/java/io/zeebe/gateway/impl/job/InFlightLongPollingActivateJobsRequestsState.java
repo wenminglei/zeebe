@@ -7,11 +7,15 @@
  */
 package io.zeebe.gateway.impl.job;
 
+import io.zeebe.gateway.Loggers;
 import io.zeebe.gateway.metrics.LongPollingMetrics;
 import java.util.LinkedList;
 import java.util.Queue;
+import org.slf4j.Logger;
 
 public final class InFlightLongPollingActivateJobsRequestsState {
+
+  private static final Logger LOGGER = Loggers.GATEWAY_LOGGER;
 
   private final String jobType;
   private final LongPollingMetrics metrics;
@@ -45,40 +49,57 @@ public final class InFlightLongPollingActivateJobsRequestsState {
 
   public synchronized void enqueueRequest(final LongPollingActivateJobsRequest request) {
     pendingRequests.offer(request);
-    metrics.setBlockedRequestsCount(jobType, pendingRequests.size());
+    removeObsoleteRequestsAndUpdateMetrics();
   }
 
-  public synchronized void removeCanceledRequests() {
-    pendingRequests.removeIf(LongPollingActivateJobsRequest::isCanceled);
+  private synchronized void removeObsoleteRequestsAndUpdateMetrics() {
+    pendingRequests.removeIf(this::isObsolete);
     metrics.setBlockedRequestsCount(jobType, pendingRequests.size());
+    if (activeRequest != null && isObsolete(activeRequest)) {
+      removeActiveRequest();
+    }
+  }
+
+  private boolean isObsolete(final LongPollingActivateJobsRequest request) {
+    return request.isTimedOut() || request.isCanceled() || request.isCompleted();
   }
 
   public synchronized void removeRequest(final LongPollingActivateJobsRequest request) {
+    if (activeRequest == request) {
+      removeActiveRequest();
+    }
     pendingRequests.remove(request);
-    metrics.setBlockedRequestsCount(jobType, pendingRequests.size());
+    removeObsoleteRequestsAndUpdateMetrics();
   }
 
   public synchronized LongPollingActivateJobsRequest getNextPendingRequest() {
+    removeObsoleteRequestsAndUpdateMetrics();
     final LongPollingActivateJobsRequest request = pendingRequests.poll();
     metrics.setBlockedRequestsCount(jobType, pendingRequests.size());
     return request;
   }
 
   public synchronized LongPollingActivateJobsRequest getActiveRequest() {
+    if (activeRequest != null && isObsolete(activeRequest)) {
+      removeActiveRequest();
+    }
     return activeRequest;
   }
 
   public synchronized void setActiveRequest(final LongPollingActivateJobsRequest request) {
     if (activeRequest != null) {
-      throw new IllegalStateException(
-          "Active request is already set[activeRequest=" + activeRequest + ", request=" + request);
+      LOGGER.error(
+          "SetActiveRequest - Active request is already set[activeRequest="
+              + activeRequest
+              + ", request="
+              + request);
     }
     this.activeRequest = request;
   }
 
   public synchronized void removeActiveRequest() {
     if (activeRequest == null) {
-      throw new IllegalStateException("No active request present");
+      LOGGER.error("RemoveActiveRequest -No active request present");
     }
     activeRequest = null;
   }

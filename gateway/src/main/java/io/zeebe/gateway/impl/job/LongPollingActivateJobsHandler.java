@@ -168,8 +168,6 @@ public final class LongPollingActivateJobsHandler extends Actor {
 
     if (state.getActiveRequest() == null) {
 
-      state.removeCanceledRequests();
-
       final LongPollingActivateJobsRequest nextPendingRequest = state.getNextPendingRequest();
 
       if (nextPendingRequest != null) {
@@ -229,8 +227,6 @@ public final class LongPollingActivateJobsHandler extends Actor {
     final long now = currentTimeMillis();
     jobTypeState.forEach(
         (type, state) -> {
-          state.removeCanceledRequests();
-
           if (state.getActiveRequest() == null
               && state.getLastUpdatedTime() < (now - probeTimeoutMillis)) {
             final LongPollingActivateJobsRequest probeRequest = state.getNextPendingRequest();
