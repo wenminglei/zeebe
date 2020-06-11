@@ -619,6 +619,9 @@ public final class RaftRule extends ExternalResource {
       fail("Unexpected write error: " + error.getMessage());
     }
 
+    @Override
+    public void validatePositions(final long lastPosition, final ZeebeEntry entry) {}
+
     public long awaitCommit() throws Exception {
       return commitFuture.get(30, TimeUnit.SECONDS);
     }

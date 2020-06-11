@@ -71,5 +71,7 @@ public interface ZeebeLogAppender {
      * @param error the error that occurred
      */
     void onCommitError(Indexed<ZeebeEntry> indexed, Throwable error);
+
+    void validatePositions(long lastPosition, ZeebeEntry entry);
   }
 }

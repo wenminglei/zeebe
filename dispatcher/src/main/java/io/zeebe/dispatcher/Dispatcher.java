@@ -35,12 +35,13 @@ public class Dispatcher extends Actor {
 
   private final AtomicPosition publisherLimit;
   private final AtomicPosition publisherPosition;
+  private long recordPosition;
   private final String[] defaultSubscriptionNames;
   private final int maxFragmentLength;
   private final String name;
   private final int logWindowLength;
   private Subscription[] subscriptions;
-  private final Runnable onClaimComplete = this::signalSubsciptions;
+  private final Runnable onClaimComplete = this::signalSubscriptions;
   private volatile boolean isClosed = false;
   private final Runnable backgroundTask = this::runBackgroundTask;
   private ActorCondition dataConsumed;
@@ -50,6 +51,7 @@ public class Dispatcher extends Actor {
       final LogBufferAppender logAppender,
       final AtomicPosition publisherLimit,
       final AtomicPosition publisherPosition,
+      final long initialPosition,
       final int logWindowLength,
       final int maxFragmentLength,
       final String[] subscriptionNames,
@@ -58,6 +60,7 @@ public class Dispatcher extends Actor {
     this.logAppender = logAppender;
     this.publisherLimit = publisherLimit;
     this.publisherPosition = publisherPosition;
+    this.recordPosition = initialPosition;
     this.name = name;
 
     this.logWindowLength = logWindowLength;
@@ -108,7 +111,7 @@ public class Dispatcher extends Actor {
     }
   }
 
-  private void signalSubsciptions() {
+  private void signalSubscriptions() {
     final Subscription[] subscriptions = this.subscriptions;
     for (int i = 0; i < subscriptions.length; i++) {
       subscriptions[i].getActorConditions().signalConsumers();
@@ -142,6 +145,7 @@ public class Dispatcher extends Actor {
         (partition, activePartitionId) ->
             logAppender.claim(
                 partition, activePartitionId, claim, length, streamId, onClaimComplete),
+        1,
         length);
   }
 
@@ -163,11 +167,14 @@ public class Dispatcher extends Actor {
         (partition, activePartitionId) ->
             logAppender.claim(
                 partition, activePartitionId, batch, fragmentCount, batchLength, onClaimComplete),
+        fragmentCount,
         batchLength);
   }
 
-  private long offer(
-      final BiFunction<LogBufferPartition, Integer, Integer> claimer, final int length) {
+  private synchronized long offer(
+      final BiFunction<LogBufferPartition, Integer, Integer> claimer,
+      final int fragmentCount,
+      final int length) {
     long newPosition = -1;
 
     if (!isClosed) {
@@ -191,10 +198,12 @@ public class Dispatcher extends Actor {
 
         newPosition = updatePublisherPosition(activePartitionId, newOffset);
 
-        if (publisherPosition.proposeMaxOrdered(newPosition)) {
-          LOG.trace("Updated publisher position to {}", newPosition);
+        // if successful, replace position with simple counter
+        if (newPosition > 0) {
+          newPosition = recordPosition;
+          recordPosition += fragmentCount;
         }
-        signalSubsciptions();
+        signalSubscriptions();
       }
     }
 
@@ -207,8 +216,12 @@ public class Dispatcher extends Actor {
     if (newOffset > 0) {
       newPosition = position(activePartitionId, newOffset);
     } else if (newOffset == RESULT_PADDING_AT_END_OF_PARTITION) {
-      logBuffer.onActiveParitionFilled(activePartitionId);
+      logBuffer.onActivePartitionFilled(activePartitionId);
       newPosition = -2;
+    }
+
+    if (publisherPosition.proposeMaxOrdered(newPosition)) {
+      LOG.trace("Updated publisher position to {}", newPosition);
     }
 
     return newPosition;
@@ -218,7 +231,7 @@ public class Dispatcher extends Actor {
     int isUpdated = 0;
 
     if (!isClosed) {
-      long lastSubscriberPosition = -1;
+      long lastSubscriberPosition;
 
       if (subscriptions.length > 0) {
         lastSubscriberPosition = subscriptions[subscriptions.length - 1].getPosition();
@@ -304,13 +317,13 @@ public class Dispatcher extends Actor {
       final int subscriptionId, final String subscriptionName, final ActorCondition onConsumption) {
     final AtomicPosition position = new AtomicPosition();
     position.set(position(logBuffer.getActivePartitionIdVolatile(), 0));
-    final AtomicPosition limit = determineLimit(subscriptionId);
+    final AtomicPosition limit = determineLimit();
 
     return new Subscription(
         position, limit, subscriptionId, subscriptionName, onConsumption, logBuffer);
   }
 
-  protected AtomicPosition determineLimit(final int subscriptionId) {
+  protected AtomicPosition determineLimit() {
     return publisherPosition;
   }
 
@@ -334,8 +347,7 @@ public class Dispatcher extends Actor {
       }
     }
 
-    Subscription[] newSubscriptions = null;
-
+    final Subscription[] newSubscriptions;
     final int numMoved = len - index - 1;
 
     if (numMoved == 0) {

@@ -7,6 +7,7 @@
  */
 package io.zeebe.logstreams.spi;
 
+import io.atomix.raft.zeebe.ZeebeEntry;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
@@ -118,5 +119,7 @@ public interface LogStorage {
      * @param error the error that occurred
      */
     void onCommitError(long address, Throwable error);
+
+    void validatePositions(long lastPosition, final ZeebeEntry entry);
   }
 }

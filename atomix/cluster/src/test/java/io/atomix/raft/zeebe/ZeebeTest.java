@@ -261,7 +261,7 @@ public class ZeebeTest {
   }
 
   @Test
-  public void shouldBeConsistentAfterFailOver() {
+  public void shouldCheckConsistentAfterFailOver() {
     assumeTrue(nodes.size() > 1);
 
     // given
@@ -328,6 +328,9 @@ public class ZeebeTest {
 
           @Override
           public void onCommitError(Indexed<ZeebeEntry> indexed, Throwable error) {}
+
+          @Override
+          public void validatePositions(final long lastPosition, final ZeebeEntry entry) {}
         });
 
     assertTrue(latch.await(2, TimeUnit.SECONDS));

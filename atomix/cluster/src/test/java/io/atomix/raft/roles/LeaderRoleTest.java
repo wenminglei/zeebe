@@ -16,6 +16,7 @@
 package io.atomix.raft.roles;
 
 import static junit.framework.TestCase.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -33,6 +34,7 @@ import io.atomix.raft.storage.log.RaftLogWriter;
 import io.atomix.raft.storage.log.entry.RaftLogEntry;
 import io.atomix.raft.zeebe.ZeebeEntry;
 import io.atomix.raft.zeebe.ZeebeLogAppender.AppendListener;
+import io.atomix.raft.zeebe.util.TestAppender;
 import io.atomix.storage.StorageException;
 import io.atomix.storage.journal.Indexed;
 import io.atomix.utils.concurrent.SingleThreadContext;
@@ -109,6 +111,9 @@ public class LeaderRoleTest {
 
           @Override
           public void onCommitError(final Indexed<ZeebeEntry> indexed, final Throwable error) {}
+
+          @Override
+          public void validatePositions(final long lastPosition, final ZeebeEntry entry) {}
         };
 
     // when
@@ -150,6 +155,9 @@ public class LeaderRoleTest {
 
           @Override
           public void onCommitError(final Indexed<ZeebeEntry> indexed, final Throwable error) {}
+
+          @Override
+          public void validatePositions(final long lastPosition, final ZeebeEntry entry) {}
         };
 
     // when
@@ -185,6 +193,9 @@ public class LeaderRoleTest {
 
           @Override
           public void onCommitError(final Indexed<ZeebeEntry> indexed, final Throwable error) {}
+
+          @Override
+          public void validatePositions(final long lastPosition, final ZeebeEntry entry) {}
         };
 
     // when
@@ -223,6 +234,9 @@ public class LeaderRoleTest {
 
           @Override
           public void onCommitError(final Indexed<ZeebeEntry> indexed, final Throwable error) {}
+
+          @Override
+          public void validatePositions(final long lastPosition, final ZeebeEntry entry) {}
         };
 
     // when
@@ -262,6 +276,9 @@ public class LeaderRoleTest {
 
           @Override
           public void onCommitError(final Indexed<ZeebeEntry> indexed, final Throwable error) {}
+
+          @Override
+          public void validatePositions(final long lastPosition, final ZeebeEntry entry) {}
         };
 
     // when
@@ -299,6 +316,9 @@ public class LeaderRoleTest {
 
           @Override
           public void onCommitError(final Indexed<ZeebeEntry> indexed, final Throwable error) {}
+
+          @Override
+          public void validatePositions(final long lastPosition, final ZeebeEntry entry) {}
         };
 
     // when
@@ -337,6 +357,9 @@ public class LeaderRoleTest {
 
           @Override
           public void onCommitError(final Indexed<ZeebeEntry> indexed, final Throwable error) {}
+
+          @Override
+          public void validatePositions(final long lastPosition, final ZeebeEntry entry) {}
         };
 
     // when
@@ -386,6 +409,9 @@ public class LeaderRoleTest {
 
           @Override
           public void onCommitError(final Indexed<ZeebeEntry> indexed, final Throwable error) {}
+
+          @Override
+          public void validatePositions(final long lastPosition, final ZeebeEntry entry) {}
         };
 
     // when
@@ -402,7 +428,7 @@ public class LeaderRoleTest {
   }
 
   @Test
-  public void shouldNotAppendInconsistentEntry() throws InterruptedException {
+  public void shouldCheckInconsistencyWithLastEntry() throws InterruptedException {
     // given
     when(writer.append(any(ZeebeEntry.class)))
         .then(
@@ -410,7 +436,6 @@ public class LeaderRoleTest {
               final ZeebeEntry zeebeEntry = i.getArgument(0);
               final Indexed<RaftLogEntry> indexedEntry = new Indexed<>(1, zeebeEntry, 45);
               when(writer.getLastEntry()).thenReturn(indexedEntry);
-
               return indexedEntry;
             });
 
@@ -431,12 +456,24 @@ public class LeaderRoleTest {
 
           @Override
           public void onCommitError(final Indexed<ZeebeEntry> indexed, final Throwable error) {}
+
+          @Override
+          public void validatePositions(final long lastPosition, final ZeebeEntry entry) {
+            assertThat(lastPosition).isEqualTo(7);
+            assertThat(entry.lowestPosition()).isEqualTo(9);
+            assertThat(entry.highestPosition()).isEqualTo(9);
+            entry.data().rewind();
+            data.rewind();
+            assertThat(entry.data()).isEqualTo(data);
+
+            throw new IllegalStateException("expected");
+          }
         };
 
-    leaderRole.appendEntry(6, 7, data, listener);
+    leaderRole.appendEntry(6, 7, data, new TestAppender());
 
     // when
-    leaderRole.appendEntry(7, 7, data, listener);
+    leaderRole.appendEntry(9, 9, data, listener);
 
     // then
     assertTrue(latch.await(2, TimeUnit.SECONDS));

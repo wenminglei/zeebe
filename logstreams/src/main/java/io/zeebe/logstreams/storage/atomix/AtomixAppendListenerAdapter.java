@@ -38,4 +38,9 @@ public final class AtomixAppendListenerAdapter implements AppendListener {
   public void onCommitError(final Indexed<ZeebeEntry> indexed, final Throwable error) {
     delegate.onCommitError(indexed.index(), error);
   }
+
+  @Override
+  public void validatePositions(final long lastPosition, final ZeebeEntry entry) {
+    delegate.validatePositions(lastPosition, entry);
+  }
 }

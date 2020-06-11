@@ -234,5 +234,8 @@ public final class AtomixLogStorageReaderTest {
     public void onCommitError(final Indexed<ZeebeEntry> indexed, final Throwable throwable) {
       // do nothing
     }
+
+    @Override
+    public void validatePositions(final long lastPosition, final ZeebeEntry entry) {}
   }
 }

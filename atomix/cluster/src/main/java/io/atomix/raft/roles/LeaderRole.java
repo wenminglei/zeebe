@@ -59,6 +59,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import org.agrona.concurrent.UnsafeBuffer;
 
 /** Leader state. */
 public final class LeaderRole extends ActiveRole implements ZeebeLogAppender {
@@ -68,6 +69,7 @@ public final class LeaderRole extends ActiveRole implements ZeebeLogAppender {
   private Scheduled appendTimer;
   private long configuring;
   private CompletableFuture<Void> commitInitialEntriesFuture;
+  private final UnsafeBuffer reader = new UnsafeBuffer();
 
   public LeaderRole(final RaftContext context) {
     super(context);
@@ -664,11 +666,12 @@ public final class LeaderRole extends ActiveRole implements ZeebeLogAppender {
       return;
     }
 
-    if (!isEntryConsistent(lowestPosition)) {
-      appendListener.onWriteError(
-          new IllegalStateException("New entry has lower Zeebe log position than last entry."));
+    try {
+      validateEntryConsistency(entry, appendListener);
+    } catch (final IllegalStateException e) {
+      appendListener.onWriteError(e);
       raft.transition(Role.FOLLOWER);
-      return;
+      throw e;
     }
 
     append(entry)
@@ -688,11 +691,8 @@ public final class LeaderRole extends ActiveRole implements ZeebeLogAppender {
             });
   }
 
-  /**
-   * Returns true if the supplied position is higher than the last ZeebeEntry in the log or if no
-   * ZeebeEntry was found at all.
-   */
-  private boolean isEntryConsistent(final long newEntryPosition) {
+  /** Checks that the entry's positions are consecutive from the last ZeebeEntry in the log. */
+  private void validateEntryConsistency(final ZeebeEntry entry, final AppendListener listener) {
     Indexed<RaftLogEntry> lastEntry = raft.getLogWriter().getLastEntry();
 
     if (lastEntry == null || lastEntry.type() != ZeebeEntry.class) {
@@ -710,9 +710,12 @@ public final class LeaderRole extends ActiveRole implements ZeebeLogAppender {
       } while (index > 0 && lastEntry != null && lastEntry.type() != ZeebeEntry.class);
     }
 
-    return lastEntry == null
-        || lastEntry.type() != ZeebeEntry.class
-        || newEntryPosition > ((ZeebeEntry) lastEntry.entry()).highestPosition();
+    long lastPosition = -1;
+    if (lastEntry != null && lastEntry.type() == ZeebeEntry.class) {
+      lastPosition = ((ZeebeEntry) lastEntry.entry()).highestPosition();
+    }
+
+    listener.validatePositions(lastPosition, entry);
   }
 
   private void replicate(final Indexed<ZeebeEntry> indexed, final AppendListener appendListener) {

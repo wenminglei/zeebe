@@ -56,6 +56,9 @@ public class TestAppender implements AppendListener {
     errors.offer(error);
   }
 
+  @Override
+  public void validatePositions(final long lastPosition, final ZeebeEntry entry) {}
+
   public Indexed<ZeebeEntry> append(
       final ZeebeLogAppender appender,
       final long lowest,

@@ -780,6 +780,9 @@ public class RaftTest extends ConcurrentTestCase {
       commitFuture.complete(indexed.index());
     }
 
+    @Override
+    public void validatePositions(final long lastPosition, final ZeebeEntry entry) {}
+
     public long awaitCommit() throws Exception {
       return commitFuture.get(30, TimeUnit.SECONDS);
     }
