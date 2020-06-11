@@ -150,7 +150,7 @@ public final class ActivateJobsTest {
           .workerName("closed-" + i)
           .send();
 
-      Thread.sleep(50);
+      Thread.sleep(100);
       client.close();
     }
   }

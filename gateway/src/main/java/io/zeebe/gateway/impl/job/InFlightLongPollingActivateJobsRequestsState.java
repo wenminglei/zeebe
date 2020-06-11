@@ -60,6 +60,7 @@ public final class InFlightLongPollingActivateJobsRequestsState {
   }
 
   public Queue<LongPollingActivateJobsRequest> getPendingRequests() {
+    removeObsoleteRequestsAndUpdateMetrics();
     return pendingRequests;
   }
 
