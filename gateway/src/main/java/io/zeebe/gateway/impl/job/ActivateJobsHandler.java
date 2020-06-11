@@ -11,8 +11,15 @@ import io.grpc.stub.StreamObserver;
 import io.zeebe.gateway.protocol.GatewayOuterClass.ActivateJobsRequest;
 import io.zeebe.gateway.protocol.GatewayOuterClass.ActivateJobsResponse;
 
+/** Can handle an 'activate jobs' request from a client. */
 public interface ActivateJobsHandler {
 
+  /**
+   * Handle activate jobs request from a client
+   *
+   * @param request The request to handle
+   * @param responseObserver The stream to write the responses to
+   */
   void activateJobs(
       ActivateJobsRequest request, StreamObserver<ActivateJobsResponse> responseObserver);
 }

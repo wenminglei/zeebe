@@ -23,13 +23,16 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
-// todo(@korthout): improve name
-public final class ActivateJobsHandlerImpl implements ActivateJobsHandler {
+/**
+ * Iterates in round-robin fashion over partitions to activate jobs. Uses a map from job type to
+ * partition-IDs to determine the next partition to use.
+ */
+public final class RoundRobinActivateJobsHandler implements ActivateJobsHandler {
 
   private final Map<String, Integer> jobTypeToNextPartitionId = new HashMap<>();
   private final BrokerClient brokerClient;
 
-  public ActivateJobsHandlerImpl(final BrokerClient brokerClient) {
+  public RoundRobinActivateJobsHandler(final BrokerClient brokerClient) {
     this.brokerClient = brokerClient;
   }
 

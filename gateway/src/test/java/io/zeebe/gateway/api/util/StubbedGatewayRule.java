@@ -9,8 +9,8 @@ package io.zeebe.gateway.api.util;
 
 import io.zeebe.gateway.impl.configuration.GatewayCfg;
 import io.zeebe.gateway.impl.job.ActivateJobsHandler;
-import io.zeebe.gateway.impl.job.ActivateJobsHandlerImpl;
 import io.zeebe.gateway.impl.job.LongPollingActivateJobsHandler;
+import io.zeebe.gateway.impl.job.RoundRobinActivateJobsHandler;
 import io.zeebe.gateway.protocol.GatewayGrpc.GatewayBlockingStub;
 import io.zeebe.util.sched.testing.ActorSchedulerRule;
 import org.junit.rules.ExternalResource;
@@ -34,7 +34,7 @@ public final class StubbedGatewayRule extends ExternalResource {
     if (config.getLongPolling().isEnabled()) {
       return LongPollingActivateJobsHandler.newBuilder().setBrokerClient(brokerClient).build();
     }
-    return new ActivateJobsHandlerImpl(brokerClient);
+    return new RoundRobinActivateJobsHandler(brokerClient);
   }
 
   @Override

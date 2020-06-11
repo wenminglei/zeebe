@@ -18,8 +18,8 @@ import io.zeebe.gateway.impl.configuration.GatewayCfg;
 import io.zeebe.gateway.impl.configuration.NetworkCfg;
 import io.zeebe.gateway.impl.configuration.SecurityCfg;
 import io.zeebe.gateway.impl.job.ActivateJobsHandler;
-import io.zeebe.gateway.impl.job.ActivateJobsHandlerImpl;
 import io.zeebe.gateway.impl.job.LongPollingActivateJobsHandler;
+import io.zeebe.gateway.impl.job.RoundRobinActivateJobsHandler;
 import io.zeebe.util.VersionUtil;
 import io.zeebe.util.sched.ActorScheduler;
 import java.io.File;
@@ -105,7 +105,7 @@ public final class Gateway {
       actorScheduler.submitActor(longPollingHandler);
       activateJobsHandler = longPollingHandler;
     } else {
-      activateJobsHandler = new ActivateJobsHandlerImpl(brokerClient);
+      activateJobsHandler = new RoundRobinActivateJobsHandler(brokerClient);
     }
     final EndpointManager endpointManager = new EndpointManager(brokerClient, activateJobsHandler);
 
