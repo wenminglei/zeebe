@@ -300,18 +300,5 @@ public final class BpmnStateTransitionBehavior {
                   childInstance.getValue());
             },
             () -> transitionToTerminated(context));
-    //
-    //    if (childInstance != null && childInstance.canTerminate()) {
-    //      context
-    //          .getOutput()
-    //          .appendFollowUpEvent(
-    //              calledChildInstanceKey,
-    //              WorkflowInstanceIntent.ELEMENT_TERMINATING,
-    //              childInstance.getValue());
-    //
-    //    } else {
-    //      // child instance is already completed or terminated
-    //      stateTransitionBehavior.transitionToTerminated(context);
-    //    }
   }
 }
