@@ -146,7 +146,7 @@ public final class LongPollingActivateJobsTest {
     brokerClient.notifyJobsAvailable(TYPE);
 
     // then
-    verify(stub, timeout(2000).times((2 * amount + 1) * partitionsCount)).handle(any());
+    verify(stub, timeout(2000).times(((4 * amount) - 1) * partitionsCount)).handle(any());
   }
 
   @Test
@@ -220,7 +220,7 @@ public final class LongPollingActivateJobsTest {
     actorClock.addTime(Duration.ofMillis(probeTimeout));
 
     // then
-    verify(stub, timeout(2000).times(3 * partitionsCount)).handle(any());
+    verify(stub, timeout(2000).times(2 * partitionsCount)).handle(any());
   }
 
   @Test

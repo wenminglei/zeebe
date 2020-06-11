@@ -19,8 +19,10 @@ public final class InFlightLongPollingActivateJobsRequestsState {
 
   private final String jobType;
   private final LongPollingMetrics metrics;
+  private final Queue<LongPollingActivateJobsRequest> activeRequests = new LinkedList<>();
+  private final Queue<LongPollingActivateJobsRequest> activeRequestsToBeRepeated =
+      new LinkedList<>();
   private final Queue<LongPollingActivateJobsRequest> pendingRequests = new LinkedList<>();
-  private LongPollingActivateJobsRequest activeRequest;
   private int failedAttempts;
   private long lastUpdatedTime;
 
@@ -37,6 +39,9 @@ public final class InFlightLongPollingActivateJobsRequestsState {
 
   public void resetFailedAttempts(final int failedAttempts) {
     this.failedAttempts = failedAttempts;
+    if (failedAttempts == 0) {
+      activeRequestsToBeRepeated.addAll(activeRequests);
+    }
   }
 
   public int getFailedAttempts() {
@@ -47,60 +52,59 @@ public final class InFlightLongPollingActivateJobsRequestsState {
     return lastUpdatedTime;
   }
 
-  public synchronized void enqueueRequest(final LongPollingActivateJobsRequest request) {
-    pendingRequests.offer(request);
+  public void enqueueRequest(final LongPollingActivateJobsRequest request) {
+    if (!pendingRequests.contains(request)) {
+      pendingRequests.offer(request);
+    }
     removeObsoleteRequestsAndUpdateMetrics();
   }
 
-  private synchronized void removeObsoleteRequestsAndUpdateMetrics() {
+  public Queue<LongPollingActivateJobsRequest> getPendingRequests() {
+    return pendingRequests;
+  }
+
+  private void removeObsoleteRequestsAndUpdateMetrics() {
     pendingRequests.removeIf(this::isObsolete);
+    activeRequests.removeIf(this::isObsolete);
+    activeRequestsToBeRepeated.removeIf(this::isObsolete);
     metrics.setBlockedRequestsCount(jobType, pendingRequests.size());
-    if (activeRequest != null && isObsolete(activeRequest)) {
-      removeActiveRequest();
-    }
   }
 
   private boolean isObsolete(final LongPollingActivateJobsRequest request) {
     return request.isTimedOut() || request.isCanceled() || request.isCompleted();
   }
 
-  public synchronized void removeRequest(final LongPollingActivateJobsRequest request) {
-    if (activeRequest == request) {
-      removeActiveRequest();
-    }
+  public void removeRequest(final LongPollingActivateJobsRequest request) {
     pendingRequests.remove(request);
     removeObsoleteRequestsAndUpdateMetrics();
   }
 
-  public synchronized LongPollingActivateJobsRequest getNextPendingRequest() {
+  public LongPollingActivateJobsRequest getNextPendingRequest() {
     removeObsoleteRequestsAndUpdateMetrics();
     final LongPollingActivateJobsRequest request = pendingRequests.poll();
     metrics.setBlockedRequestsCount(jobType, pendingRequests.size());
     return request;
   }
 
-  public synchronized LongPollingActivateJobsRequest getActiveRequest() {
-    if (activeRequest != null && isObsolete(activeRequest)) {
-      removeActiveRequest();
-    }
-    return activeRequest;
+  public void addActiveRequest(final LongPollingActivateJobsRequest request) {
+    activeRequests.offer(request);
   }
 
-  public synchronized void setActiveRequest(final LongPollingActivateJobsRequest request) {
-    if (activeRequest != null) {
-      LOGGER.error(
-          "SetActiveRequest - Active request is already set[activeRequest="
-              + activeRequest
-              + ", request="
-              + request);
-    }
-    this.activeRequest = request;
+  public void removeActiveRequest(final LongPollingActivateJobsRequest request) {
+    activeRequests.remove(request);
+    activeRequestsToBeRepeated.remove(request);
   }
 
-  public synchronized void removeActiveRequest() {
-    if (activeRequest == null) {
-      LOGGER.error("RemoveActiveRequest -No active request present");
-    }
-    activeRequest = null;
+  public boolean hasActiveRequests() {
+    removeObsoleteRequestsAndUpdateMetrics();
+    return !activeRequests.isEmpty();
+  }
+
+  /**
+   * Returns whether the request should be repeated. A request should be repeated if the failed
+   * attempts were reset to 0 (because new jobs became available) whilst the request was running
+   */
+  public boolean shouldBeRepeated(final LongPollingActivateJobsRequest request) {
+    return activeRequestsToBeRepeated.contains(request);
   }
 }
