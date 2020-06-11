@@ -66,16 +66,11 @@ public final class BpmnElementProcessors {
 
   public <T extends ExecutableFlowElement> BpmnElementContainerProcessor<T> getContainerProcessor(
       final BpmnElementType bpmnElementType) {
-    switch (bpmnElementType) {
-      case PROCESS:
-      case SUB_PROCESS:
-      case MULTI_INSTANCE_BODY:
-      case CALL_ACTIVITY:
-        return (BpmnElementContainerProcessor<T>) processors.get(bpmnElementType);
-      default:
-        throw new UnsupportedOperationException(
-            String.format(
-                "no container processor found for BPMN element type '%s'", bpmnElementType));
+    final var processor = processors.get(bpmnElementType);
+    if (processor instanceof BpmnElementContainerProcessor) {
+      return (BpmnElementContainerProcessor<T>) processor;
     }
+    throw new UnsupportedOperationException(
+        String.format("no container processor found for BPMN element type '%s'", bpmnElementType));
   }
 }
