@@ -138,15 +138,25 @@ public final class LongPollingActivateJobsTest {
     // given
     final int amount = 3;
     activateJobsAndWaitUntilBlocked(amount);
+    final int firstRound = amount * partitionsCount;
 
-    verify(stub, times(amount * partitionsCount)).handle(any());
+    verify(stub, times(firstRound)).handle(any());
 
     // when
     stub.addAvailableJobs(TYPE, 1);
     brokerClient.notifyJobsAvailable(TYPE);
 
     // then
-    verify(stub, timeout(2000).times(((4 * amount) - 1) * partitionsCount)).handle(any());
+
+    // the job available notification triggers all three requests again
+    final int invTriggeredByNotification = amount * partitionsCount;
+    // the one request which has a result, re-triggers the remaining requests
+    final int invTriggeredBySuccessfulRequest = (amount - 1) * partitionsCount;
+    verify(
+            stub,
+            timeout(2000)
+                .times(firstRound + invTriggeredByNotification + invTriggeredBySuccessfulRequest))
+        .handle(any());
   }
 
   @Test

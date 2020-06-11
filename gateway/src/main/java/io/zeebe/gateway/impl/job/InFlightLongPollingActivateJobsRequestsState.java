@@ -89,6 +89,7 @@ public final class InFlightLongPollingActivateJobsRequestsState {
 
   public void addActiveRequest(final LongPollingActivateJobsRequest request) {
     activeRequests.offer(request);
+    pendingRequests.remove(request);
   }
 
   public void removeActiveRequest(final LongPollingActivateJobsRequest request) {
