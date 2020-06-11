@@ -336,16 +336,31 @@ public class StreamProcessor extends Actor implements HealthMonitorable {
   }
 
   public void pauseProcessing() {
-    actor.call(() -> this.shouldProcess = false);
+    actor.call(
+        () -> {
+          if (this.shouldProcess) {
+            lifecycleAwareListeners.forEach(StreamProcessorLifecycleAware::onPaused);
+            this.shouldProcess = false;
+            phase = Phase.PROCESSING;
+          }
+        });
   }
 
   public void resumeProcessing() {
-    actor.call(() -> this.shouldProcess = true);
+    actor.call(
+        () -> {
+          if (!this.shouldProcess) {
+            lifecycleAwareListeners.forEach(StreamProcessorLifecycleAware::onResumed);
+            this.shouldProcess = true;
+            phase = Phase.PAUSED;
+          }
+        });
   }
 
   private enum Phase {
     REPROCESSING,
     PROCESSING,
-    FAILED
+    FAILED,
+    PAUSED,
   }
 }

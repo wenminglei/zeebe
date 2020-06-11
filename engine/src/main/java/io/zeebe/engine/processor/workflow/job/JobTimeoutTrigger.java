@@ -24,6 +24,7 @@ public final class JobTimeoutTrigger implements StreamProcessorLifecycleAware {
 
   private ScheduledTimer timer;
   private TypedCommandWriter writer;
+  private ReadonlyProcessingContext processingContext;
 
   public JobTimeoutTrigger(final JobState state) {
     this.state = state;
@@ -31,8 +32,9 @@ public final class JobTimeoutTrigger implements StreamProcessorLifecycleAware {
 
   @Override
   public void onRecovered(final ReadonlyProcessingContext processingContext) {
+    this.processingContext = processingContext;
     timer =
-        processingContext
+        this.processingContext
             .getActor()
             .runAtFixedRate(TIME_OUT_POLLING_INTERVAL, this::deactivateTimedOutJobs);
     writer = processingContext.getLogStreamWriter();
@@ -52,6 +54,22 @@ public final class JobTimeoutTrigger implements StreamProcessorLifecycleAware {
       timer.cancel();
       timer = null;
     }
+  }
+
+  @Override
+  public void onPaused() {
+    if (timer != null) {
+      timer.cancel();
+      timer = null;
+    }
+  }
+
+  @Override
+  public void onResumed() {
+    timer =
+        processingContext
+            .getActor()
+            .runAtFixedRate(TIME_OUT_POLLING_INTERVAL, this::deactivateTimedOutJobs);
   }
 
   void deactivateTimedOutJobs() {
