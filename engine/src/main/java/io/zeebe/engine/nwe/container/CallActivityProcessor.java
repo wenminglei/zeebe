@@ -20,12 +20,18 @@ import io.zeebe.engine.processor.Failure;
 import io.zeebe.engine.processor.workflow.ExpressionProcessor;
 import io.zeebe.engine.processor.workflow.deployment.model.element.ExecutableCallActivity;
 import io.zeebe.engine.state.deployment.DeployedWorkflow;
+import io.zeebe.protocol.record.intent.WorkflowInstanceIntent;
 import io.zeebe.protocol.record.value.ErrorType;
 import io.zeebe.util.Either;
 import io.zeebe.util.buffer.BufferUtil;
 
-public class CallActivityProcessor
+public final class CallActivityProcessor
     implements BpmnElementContainerProcessor<ExecutableCallActivity> {
+
+  private static final String UNABLE_TO_COMPLETE_FROM_STATE_MESSAGE =
+      "Expected to complete call activity after child completed, but call activity cannot be completed from state '%s'";
+  private static final String UNABLE_TO_TERMINATE_FROM_STATE_MESSAGE =
+      "Expected to terminate call activity after child terminated, but call activity cannot be terminated from state '%s'";
 
   private final ExpressionProcessor expressionProcessor;
   private final BpmnStateTransitionBehavior stateTransitionBehavior;
@@ -76,50 +82,82 @@ public class CallActivityProcessor
 
   @Override
   public void onActivated(final ExecutableCallActivity element, final BpmnElementContext context) {
-    throw new BpmnProcessingException(context, "Not yet implemented");
+    // Nothing to do but wait until the child process has completed
   }
 
   @Override
   public void onCompleting(final ExecutableCallActivity element, final BpmnElementContext context) {
-    throw new BpmnProcessingException(context, "Not yet implemented");
+    variableMappingBehavior
+        .applyOutputMappings(context, element)
+        .ifRightOrLeft(
+            ok -> {
+              eventSubscriptionBehavior.unsubscribeFromEvents(context);
+              stateTransitionBehavior.transitionToCompleted(context);
+            },
+            failure -> incidentBehavior.createIncident(failure, context));
   }
 
   @Override
   public void onCompleted(final ExecutableCallActivity element, final BpmnElementContext context) {
-    throw new BpmnProcessingException(context, "Not yet implemented");
+    stateTransitionBehavior.takeOutgoingSequenceFlows(element, context);
+    stateBehavior.consumeToken(context);
+    stateBehavior.removeElementInstance(context);
   }
 
   @Override
   public void onTerminating(
       final ExecutableCallActivity element, final BpmnElementContext context) {
-    throw new BpmnProcessingException(context, "Not yet implemented");
+    stateTransitionBehavior.terminateChildProcessInstance(context);
+    eventSubscriptionBehavior.unsubscribeFromEvents(context);
   }
 
   @Override
   public void onTerminated(final ExecutableCallActivity element, final BpmnElementContext context) {
-    throw new BpmnProcessingException(context, "Not yet implemented");
+    eventSubscriptionBehavior.publishTriggeredBoundaryEvent(context);
+    incidentBehavior.resolveIncidents(context);
+    stateTransitionBehavior.onElementTerminated(element, context);
+    stateBehavior.consumeToken(context);
+    stateBehavior.removeElementInstance(context);
   }
 
   @Override
   public void onEventOccurred(
       final ExecutableCallActivity element, final BpmnElementContext context) {
-    throw new BpmnProcessingException(context, "Not yet implemented");
+    eventSubscriptionBehavior.triggerBoundaryEvent(element, context);
   }
 
   @Override
   public void onChildCompleted(
       final ExecutableCallActivity element,
-      final BpmnElementContext flowScopeContext,
+      final BpmnElementContext callActivityContext,
       final BpmnElementContext childContext) {
-    throw new BpmnProcessingException(flowScopeContext, "Not yet implemented");
+    final var currentState = callActivityContext.getIntent();
+    switch (currentState) {
+      case ELEMENT_ACTIVATED:
+        stateTransitionBehavior.transitionToCompleting(callActivityContext);
+        break;
+      case ELEMENT_TERMINATING:
+        // the call activity is already terminating, it doesn't matter that the child completed
+        // do nothing
+        break;
+      default:
+        final var message = String.format(UNABLE_TO_COMPLETE_FROM_STATE_MESSAGE, currentState);
+        throw new BpmnProcessingException(callActivityContext, message);
+    }
   }
 
   @Override
   public void onChildTerminated(
       final ExecutableCallActivity element,
-      final BpmnElementContext flowScopeContext,
+      final BpmnElementContext callActivityContext,
       final BpmnElementContext childContext) {
-    throw new BpmnProcessingException(flowScopeContext, "Not yet implemented");
+    final var currentState = callActivityContext.getIntent();
+    if (currentState == WorkflowInstanceIntent.ELEMENT_TERMINATING) {
+      stateTransitionBehavior.transitionToTerminated(callActivityContext);
+    } else {
+      final var message = String.format(UNABLE_TO_TERMINATE_FROM_STATE_MESSAGE, currentState);
+      throw new BpmnProcessingException(callActivityContext, message);
+    }
   }
 
   private Either<Failure, String> evaluateProcessId(

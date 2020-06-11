@@ -143,16 +143,7 @@ public final class ProcessProcessor
 
     if (parentWorkflowInstanceKey > 0) {
       // workflow instance is created by a call activity
-
-      // TODO (saig0): move responsibility to call activity (#4473)
-      final var parentElementInstance = stateBehavior.getParentElementInstanceContext(context);
-
-      if (parentElementInstance != null
-          && parentElementInstance.getIntent() == WorkflowInstanceIntent.ELEMENT_TERMINATING) {
-        // terminate the corresponding call activity
-
-        stateTransitionBehavior.transitionToTerminated(parentElementInstance);
-      }
+      stateTransitionBehavior.onElementTerminated(element, context);
     }
 
     if (element.hasMessageStartEvent()) {

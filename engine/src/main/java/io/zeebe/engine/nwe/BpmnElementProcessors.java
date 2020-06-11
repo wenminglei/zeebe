@@ -70,6 +70,7 @@ public final class BpmnElementProcessors {
       case PROCESS:
       case SUB_PROCESS:
       case MULTI_INSTANCE_BODY:
+      case CALL_ACTIVITY:
         return (BpmnElementContainerProcessor<T>) processors.get(bpmnElementType);
       default:
         throw new UnsupportedOperationException(

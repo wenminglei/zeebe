@@ -212,4 +212,10 @@ public final class BpmnStateBehavior {
     final var variables = variablesState.getVariablesAsDocument(source);
     variablesState.setVariablesFromDocument(target, targetWorkflow.getKey(), variables);
   }
+
+  public Optional<ElementInstance> getCalledChildInstance(final BpmnElementContext context) {
+    final var elementInstance = getElementInstance(context);
+    final var calledChildInstanceKey = elementInstance.getCalledChildInstanceKey();
+    return Optional.ofNullable(elementInstanceState.getInstance(calledChildInstanceKey));
+  }
 }
