@@ -24,6 +24,7 @@ import io.zeebe.protocol.record.intent.WorkflowInstanceIntent;
 import io.zeebe.protocol.record.value.ErrorType;
 import io.zeebe.util.Either;
 import io.zeebe.util.buffer.BufferUtil;
+import org.agrona.DirectBuffer;
 
 public final class CallActivityProcessor
     implements BpmnElementContainerProcessor<ExecutableCallActivity> {
@@ -64,6 +65,8 @@ public final class CallActivityProcessor
         .flatMap(this::checkWorkflowHasNoneStartEvent)
         .ifRightOrLeft(
             workflow -> {
+              stateTransitionBehavior.transitionToActivated(context);
+
               final var childWorkflowInstanceKey =
                   stateTransitionBehavior.createChildProcessInstance(workflow, context);
 
@@ -74,8 +77,6 @@ public final class CallActivityProcessor
               final var callActivityInstanceKey = context.getElementInstanceKey();
               stateBehavior.copyVariables(
                   callActivityInstanceKey, childWorkflowInstanceKey, workflow);
-
-              stateTransitionBehavior.transitionToActivated(context);
             },
             failure -> incidentBehavior.createIncident(failure, context));
   }
@@ -160,16 +161,18 @@ public final class CallActivityProcessor
     }
   }
 
-  private Either<Failure, String> evaluateProcessId(
+  private Either<Failure, DirectBuffer> evaluateProcessId(
       final BpmnElementContext context, final ExecutableCallActivity element) {
     final var processIdExpression = element.getCalledElementProcessId();
     final var scopeKey = context.getElementInstanceKey();
-    return expressionProcessor.evaluateStringExpression(processIdExpression, scopeKey);
+    return expressionProcessor
+        .evaluateStringExpression(processIdExpression, scopeKey)
+        .map(BufferUtil::wrapString);
   }
 
   @SuppressWarnings("OptionalIsPresent") // the proposed refactoring is less readable
-  private Either<Failure, DeployedWorkflow> getWorkflowForProcessId(final String processId) {
-    final var workflow = stateBehavior.getWorkflow(processId);
+  private Either<Failure, DeployedWorkflow> getWorkflowForProcessId(final DirectBuffer processId) {
+    final var workflow = stateBehavior.getLatestWorkflowVersion(processId);
     if (workflow.isPresent()) {
       return Either.right(workflow.get());
     }
@@ -177,7 +180,7 @@ public final class CallActivityProcessor
         new Failure(
             String.format(
                 "Expected workflow with BPMN process id '%s' to be deployed, but not found.",
-                processId),
+                BufferUtil.bufferAsString(processId)),
             ErrorType.CALLED_ELEMENT_ERROR));
   }
 

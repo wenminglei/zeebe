@@ -7,8 +7,6 @@
  */
 package io.zeebe.engine.nwe.behavior;
 
-import static io.zeebe.util.buffer.BufferUtil.wrapString;
-
 import io.zeebe.engine.nwe.BpmnElementContext;
 import io.zeebe.engine.nwe.BpmnProcessingException;
 import io.zeebe.engine.state.ZeebeState;
@@ -202,8 +200,12 @@ public final class BpmnStateBehavior {
         parentElementInstance.getState());
   }
 
-  public Optional<DeployedWorkflow> getWorkflow(final String processId) {
-    final var workflow = workflowState.getLatestWorkflowVersionByProcessId(wrapString(processId));
+  public Optional<DeployedWorkflow> getWorkflow(final long workflowKey) {
+    return Optional.ofNullable(workflowState.getWorkflowByKey(workflowKey));
+  }
+
+  public Optional<DeployedWorkflow> getLatestWorkflowVersion(final DirectBuffer processId) {
+    final var workflow = workflowState.getLatestWorkflowVersionByProcessId(processId);
     return Optional.ofNullable(workflow);
   }
 
